@@ -1,0 +1,34 @@
+# Local development environment (handbook 03 §2). Brings up the datastores the
+# backend foundation needs; the API runs from your host (`pnpm --filter
+# @intent-wallet/api dev`) against these, for fast reload.
+#   docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: iw
+      POSTGRES_PASSWORD: dev-only-not-a-secret
+      POSTGRES_DB: intent_wallet
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U iw -d intent_wallet']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -1,0 +1,29 @@
+{
+  "name": "@intent-wallet/intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portfolio Intelligence Engine — the financial brain. Deterministic analytics (allocation, PnL, risk, health), insight + alert + scenario + tax engines, and an AI narration boundary that only explains verified data. Analyzes and recommends; never signs, never executes.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/portfolio": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

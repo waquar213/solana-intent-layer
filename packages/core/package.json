@@ -1,0 +1,40 @@
+{
+  "name": "@intent-wallet/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Device-only wallet core: keys, universal identity (BTC/EVM/SOL), encrypted vault, signing. Zero network I/O by design.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.2.0",
+    "@noble/curves": "^1.8.0",
+    "@noble/hashes": "^1.7.0",
+    "@scure/base": "^1.2.1",
+    "@scure/bip32": "^1.5.0",
+    "@scure/bip39": "^1.5.0",
+    "@scure/btc-signer": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "ed25519-hd-key": "^1.3.0",
+    "fast-check": "^3.15.0",
+    "typescript": "^5.5.0",
+    "viem": "^2.21.0",
+    "vitest": "^3.0.0"
+  }
+}

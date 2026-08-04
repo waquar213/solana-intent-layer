@@ -1,0 +1,3744 @@
+/* Design tokens from docs/design/01-tokens.md — near-monochrome surfaces, one indigo
+   accent, semantic risk colors. Light by default; dark via prefers-color-scheme. */
+/* "Clean minimal luxe" (Rabby × Linear) — crisp cool neutrals, one indigo accent, hairline
+   borders, restrained depth. No gradients, no glass; the discipline IS the aesthetic. */
+:root {
+  --canvas: #fafafb;
+  --surface: #ffffff;
+  --surface2: #f3f3f6;
+  --border: #ececef;
+  --border-strong: #dbdbe1;
+  --text: #191920;
+  --text-2: #5a5a65;
+  --text-3: #6e6e79; /* AA: ≥4.5:1 as body/label/placeholder */
+  --accent: #4f46e5;
+  --accent-press: #4338ca;
+  --accent-subtle: #eef0fe;
+  --on-accent: #ffffff;
+  --low: #0f7a45;
+  --low-bg: #e6f6ee;
+  --medium: #9a5309;
+  --medium-bg: #fef3e2;
+  --high: #c2410c;
+  --high-bg: #fff1e8;
+  --block: #b91c1c;
+  --block-bg: #fdebeb;
+  /* aliases some rules reference with fallbacks */
+  --muted: var(--text-3);
+  --ok: var(--low);
+  --warn: var(--medium);
+  --radius: 14px;
+  --r-sm: 10px;
+  --r-lg: 16px;
+  /* restrained, layered shadows — minimal never shouts */
+  --shadow: 0 1px 2px rgba(24, 24, 40, 0.04), 0 4px 10px rgba(24, 24, 40, 0.04);
+  --shadow-lg: 0 1px 3px rgba(24, 24, 40, 0.05), 0 12px 28px rgba(24, 24, 40, 0.09);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0b0b0e;
+    --surface: #141418;
+    --surface2: #1c1c22;
+    --border: #26262d;
+    --border-strong: #34343d;
+    --text: #f2f2f5;
+    --text-2: #adadb8;
+    --text-3: #8b8b97; /* AA in dark */
+    --accent: #7c74ff;
+    --accent-press: #6a62f0;
+    --accent-subtle: #201f42;
+    --low: #34c77b;
+    --low-bg: #0e2b1d;
+    --medium: #f59e0b;
+    --medium-bg: #33230a;
+    --high: #fb923c;
+    --high-bg: #351a0b;
+    --block: #f87171;
+    --block-bg: #351111;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 1px 3px rgba(0, 0, 0, 0.45), 0 14px 34px rgba(0, 0, 0, 0.55);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 20px 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.logo {
+  color: var(--accent);
+  font-size: 20px;
+}
+.brand h1 {
+  font-size: 17px;
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.status.up .dot {
+  background: var(--low);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--low) 20%, transparent);
+}
+.status.up .dot {
+  animation: status-breathe 2.4s ease-in-out infinite;
+}
+.status.down {
+  color: var(--block);
+  font-weight: 600;
+}
+.status.down .dot {
+  background: var(--block);
+  animation: status-pulse 1s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--block) 55%, transparent); }
+  70% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--block) 0%, transparent); }
+}
+@keyframes status-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* ── Landing hero ───────────────────────────────────────────────────────────── */
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 0;
+  animation: rise 0.5s ease both;
+}
+.hero-title {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.wave {
+  display: inline-block;
+  animation: wave 1.6s ease-in-out 2;
+  transform-origin: 70% 70%;
+}
+.hero-sub {
+  color: var(--text-2);
+  font-size: 15px;
+  max-width: 46ch;
+  margin: 0 0 26px;
+}
+
+/* ── Portfolio cards ────────────────────────────────────────────────────────── */
+.pf {
+  display: grid;
+  gap: 12px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.pf-net {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 72%, #a855f7) 100%);
+  border: none;
+  color: var(--on-accent);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.pf-net-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+.pf-net-value {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.pf-net-sub {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.pf-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.pf-asset {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pf-asset-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pf-asset-sym {
+  font-weight: 650;
+  font-size: 14px;
+}
+.pf-asset-share {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.pf-asset-val {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.pf-asset-amt {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.pf-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: var(--surface2);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.pf-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  animation: grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.lb-refresh {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.lb-refresh:hover {
+  color: var(--text-1);
+}
+.lb-testnet {
+  margin-top: 2px;
+  opacity: 0.8;
+}
+.lb-net {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.lb-net-test {
+  background: color-mix(in srgb, var(--warn, #d9822b) 20%, transparent);
+  color: var(--warn, #d9822b);
+}
+
+/* ── Universal Identity card ────────────────────────────────────────────────── */
+.id {
+  margin-top: 12px;
+  padding: 16px 18px;
+}
+.id-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.id-title {
+  font-weight: 650;
+  font-size: 14px;
+}
+.id-sub {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.id-rows {
+  display: grid;
+  gap: 8px;
+}
+.id-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 9px 12px;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.id-row:hover {
+  border-color: var(--accent);
+}
+.id-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  flex: none;
+}
+.id-chain {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+}
+.id-chain-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.id-chain-net {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.id-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.id-foot {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ── Non-custodial wallet ───────────────────────────────────────────────────── */
+.wallet-panel {
+  min-height: 60px;
+}
+.wl-lock {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--low);
+  background: var(--low-bg);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+}
+.wl-lead {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 4px 0 12px;
+}
+.wl-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.wl-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--accent);
+  /* Grow the hit area from ~18px (padding:0) toward a comfortable touch target — a bare text-line
+     link is easy to mis-tap on a phone (e.g. the ↻ refresh, Sign out). */
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 4px;
+}
+.wl-link:hover {
+  text-decoration: underline;
+}
+.wl-danger {
+  color: var(--block);
+}
+.wl-input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 8px;
+}
+.wl-input:focus {
+  border-color: var(--accent);
+}
+.wl-area {
+  min-height: 64px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+.wl-err {
+  color: var(--block);
+  font-size: 12.5px;
+  margin: 2px 0 8px;
+}
+.wl-ens-hint {
+  margin: 3px 0 8px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  word-break: break-all;
+}
+.wl-ens-hint.ok {
+  color: var(--ok, #16a34a);
+}
+.wl-ens-hint.bad {
+  color: var(--block);
+}
+.wl-activity {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.wl-act-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.wl-act-dir {
+  font-weight: 600;
+}
+.wl-act-dir.out {
+  color: var(--block);
+}
+.wl-act-dir.in {
+  color: var(--ok, #16a34a);
+}
+.wl-act-amt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.wl-act-time {
+  color: var(--muted);
+  margin-left: auto;
+}
+.wl-act-fail {
+  color: var(--block);
+  font-size: 11px;
+}
+.wl-act-link {
+  text-decoration: none;
+}
+/* Universal Portfolio modal — cross-ecosystem live balances */
+.wl-bal-go {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wl-bal-go:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.wl-bal-result {
+  margin-top: 14px;
+}
+.wl-bal-total {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.wl-bal-total b {
+  color: var(--text-1, var(--fg));
+  font-size: 18px;
+  margin-left: 6px;
+}
+.wl-bal-warn {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  color: var(--warn, #b45309);
+}
+.wl-bal-split {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wl-bal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.wl-bal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.wl-bal-sym {
+  font-weight: 700;
+  min-width: 52px;
+}
+.wl-bal-amt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-2, var(--muted));
+}
+.wl-bal-val {
+  margin-left: auto;
+  font-weight: 600;
+}
+.wl-bal-chains {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 11px;
+}
+.wl-accounts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.wl-acct-pills {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.wl-acct-pill {
+  border: 1px solid var(--border-strong);
+  background: var(--surface2);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wl-acct-pill.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.wl-session {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin: 10px 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface2);
+}
+.wl-session-badge {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ok, var(--accent));
+}
+.wl-session-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--medium-bg);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.wl-session-hint {
+  font-size: 12px;
+  color: var(--text-dim, var(--text));
+  opacity: 0.7;
+}
+.rcv-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black 45%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+.rcv-modal {
+  width: 100%;
+  max-width: 360px;
+  /* Cap to the viewport (minus the overlay's 20px padding) and scroll INTERNALLY — otherwise a tall
+     dialog (Send with the review block, or the on-screen keyboard open on mobile) overflows top and
+     bottom and its Review/Send buttons are pushed off-screen with no way to scroll to them. */
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 20px 60px color-mix(in srgb, black 30%, transparent);
+}
+.rcv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.rcv-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.rcv-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.qr-img {
+  width: 176px;
+  height: 176px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.qr-loading {
+  border: 1px dashed var(--border-strong);
+  background: var(--surface2);
+}
+.rcv-net {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin: 0;
+}
+.rcv-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--medium-bg);
+  padding: 8px 10px;
+  border-radius: 8px;
+  word-break: break-all;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+.rcv-copy {
+  width: 100%;
+}
+.rcv-note {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin: 0;
+  text-align: center;
+}
+.tx-review {
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 6px;
+  background: var(--surface2);
+}
+.tx-review-h {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--warn, var(--text));
+}
+.tx-review-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 4px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.tx-review-row span {
+  color: var(--text-2);
+}
+.tx-review-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  word-break: break-all;
+  text-align: right;
+  color: var(--text);
+}
+.wipe-modal {
+  max-width: 380px;
+}
+.wipe-h {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+/* Only the destructive remove-wallet dialog gets the danger-red heading. */
+.wipe-modal .wipe-h {
+  color: var(--block);
+}
+.wipe-lead {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.wl-danger-btn {
+  background: var(--block);
+}
+.wl-verify {
+  margin-top: 10px;
+}
+.wl-verify-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.wl-input-bad {
+  border-color: var(--block);
+}
+.ins {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ins-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.ins-stale {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warn, var(--text-2));
+  border: 1px solid color-mix(in srgb, var(--warn, orange) 40%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.ins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+.ins-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface2);
+}
+.ins-k {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ins-v {
+  font-size: 18px;
+  font-weight: 700;
+}
+.ins-v small {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.ins-health {
+  color: var(--accent);
+}
+.ins-alloc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ins-slice {
+  display: grid;
+  grid-template-columns: 56px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.ins-slice-k {
+  font-weight: 650;
+}
+.ins-slice-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.ins-slice-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.ins-slice-w {
+  text-align: right;
+  color: var(--text-2);
+}
+.ins-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ins-item {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.ins-item b {
+  color: var(--text);
+}
+.ins-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.wl-phrase {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  padding: 12px;
+  background: var(--medium-bg);
+  border: 1px solid color-mix(in srgb, var(--medium) 35%, transparent);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.wl-word {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 550;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.wl-word-n {
+  font-size: 10px;
+  color: var(--text-3);
+  min-width: 14px;
+  text-align: right;
+}
+.wl-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+.wl-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.wl-reveal {
+  margin-top: 12px;
+}
+.wl-signed {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--low-bg);
+  border: 1px solid color-mix(in srgb, var(--low) 40%, transparent);
+}
+.wl-signed-h {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--low);
+}
+.wl-mono {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-2);
+  word-break: break-all;
+}
+.wl-signed-sub {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.wl-signed-sub a {
+  color: var(--accent);
+}
+
+/* Send-on-testnet sub-panel */
+.wl-send {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface2);
+}
+.wl-chain-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.wl-chain-tab {
+  flex: 1;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.wl-chain-tab:hover {
+  color: var(--text-1);
+}
+.wl-chain-tab.active {
+  background: var(--surface2);
+  color: var(--text-1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.wl-asset-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.wl-asset-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wl-asset-tab.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.wl-asset-kind {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  opacity: 0.7;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.wl-send-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.wl-send-title {
+  font-weight: 650;
+  font-size: 13.5px;
+}
+.wl-bal {
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.wl-flabel {
+  display: block;
+  font-size: 11px;
+  color: var(--text-3);
+  margin: 4px 0 3px;
+}
+.wl-send-grid {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 10px;
+}
+.wl-send-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ── Chat feed ──────────────────────────────────────────────────────────────── */
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.started .feed {
+  flex: 1;
+  padding: 8px 0 12px;
+}
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bubble {
+  max-width: 82%;
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  animation: rise 0.35s ease both;
+}
+.bubble.you {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-bottom-right-radius: 5px;
+}
+.bubble.ai {
+  align-self: flex-start;
+  background: var(--surface2);
+  color: var(--text-2);
+  border-bottom-left-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.typing {
+  display: inline-flex;
+  gap: 3px;
+}
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ── The planning flow card ─────────────────────────────────────────────────── */
+.flow,
+.card.info,
+.card.rejected {
+  padding: 18px 20px;
+  animation: rise 0.4s ease both;
+}
+.flow-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.kind {
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.flow-lead {
+  font-size: 16px;
+  font-weight: 550;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+.flow-reasoning {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0 0 16px;
+}
+
+/* ── Timeline stages ────────────────────────────────────────────────────────── */
+.stages {
+  display: flex;
+  flex-direction: column;
+}
+.stage {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+  animation: rise 0.45s ease both;
+  animation-delay: calc(var(--i) * 90ms);
+}
+.stage-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stage-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  flex: none;
+  z-index: 1;
+}
+.stage-rail::after {
+  content: '';
+  flex: 1;
+  width: 2px;
+  background: var(--border);
+  margin: 3px 0;
+}
+.stage:last-child .stage-rail::after {
+  display: none;
+}
+.stage-done .stage-dot {
+  background: var(--low-bg);
+  border-color: color-mix(in srgb, var(--low) 45%, transparent);
+  color: var(--low);
+}
+.stage-active .stage-dot {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: pulse 1.4s infinite;
+}
+.stage-pending {
+  opacity: 0.55;
+}
+.stage-body {
+  padding-bottom: 16px;
+  min-width: 0;
+}
+.stage-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: block;
+  margin: 3px 0 6px;
+}
+.stage-content {
+  font-size: 13.5px;
+}
+
+/* ── Route graph ────────────────────────────────────────────────────────────── */
+.route {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+.route-seg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: rise 0.4s ease both;
+  animation-delay: calc(var(--i) * 80ms + 120ms);
+}
+.route-arrow {
+  color: var(--text-3);
+  font-size: 14px;
+}
+.route-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  line-height: 1.25;
+}
+.route-node.asset {
+  background: var(--accent-subtle);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.route-node-label {
+  font-size: 13px;
+  font-weight: 620;
+}
+.route-node.asset .route-node-label {
+  color: var(--accent);
+}
+.route-node-sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+/* ── Cost grid ──────────────────────────────────────────────────────────────── */
+.cost {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px 16px;
+}
+.cost > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cost-k {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+.cost-v {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ── Authorization + execution ──────────────────────────────────────────────── */
+.badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.risk-low {
+  color: var(--low);
+  background: var(--low-bg);
+}
+.risk-medium {
+  color: var(--medium);
+  background: var(--medium-bg);
+}
+.risk-high {
+  color: var(--high);
+  background: var(--high-bg);
+}
+.risk-block {
+  color: var(--block);
+  background: var(--block-bg);
+}
+.reasons {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.reasons li {
+  margin-top: 2px;
+}
+.chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  /* A clarify's choices are BUTTONS (they answer the question) — reset the UA button styling and
+     make them read as tappable, since previously they were inert spans the user couldn't use. */
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.chip:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.muted {
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+.stepup {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--medium);
+}
+.err-line {
+  margin: 12px 0 0;
+}
+
+.authz {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.authz-allow {
+  background: var(--low-bg);
+  border-color: color-mix(in srgb, var(--low) 40%, transparent);
+}
+.authz-deny {
+  background: var(--block-bg);
+  border-color: color-mix(in srgb, var(--block) 40%, transparent);
+}
+.authz-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.gate {
+  font-weight: 650;
+  font-size: 13.5px;
+}
+.authz-allow .gate {
+  color: var(--low);
+}
+.authz-deny .gate {
+  color: var(--block);
+}
+.drivenby {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.exec {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+.exec-completed {
+  background: var(--low-bg);
+  border-color: color-mix(in srgb, var(--low) 40%, transparent);
+}
+.exec-parked {
+  background: var(--medium-bg);
+  border-color: color-mix(in srgb, var(--medium) 40%, transparent);
+}
+.exec-failed {
+  background: var(--block-bg);
+  border-color: color-mix(in srgb, var(--block) 40%, transparent);
+}
+.exec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.exec-status {
+  font-weight: 650;
+  font-size: 14px;
+}
+.exec-completed .exec-status {
+  color: var(--low);
+}
+.exec-parked .exec-status {
+  color: var(--medium);
+}
+.exec-sim {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--low);
+}
+.funds {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ── Activity (session transaction history) ─────────────────────────────────── */
+.activity {
+  padding: 14px 16px;
+  margin-bottom: 4px;
+}
+.activity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.activity-title {
+  font-weight: 650;
+  font-size: 13px;
+}
+.activity-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: 18px auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.activity-ic {
+  text-align: center;
+  font-weight: 700;
+}
+.activity-row.st-completed .activity-ic {
+  color: var(--low);
+}
+.activity-row.st-parked .activity-ic {
+  color: var(--medium);
+}
+.activity-row.st-failed .activity-ic {
+  color: var(--block);
+}
+.activity-kind {
+  font-weight: 600;
+}
+.activity-chain {
+  color: var(--text-3);
+}
+.activity-txid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  justify-self: end;
+  text-decoration: none;
+}
+a.activity-txid:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.activity-row.st-running .activity-ic {
+  color: var(--accent);
+}
+.step-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.step-list li {
+  margin-top: 3px;
+}
+
+.flow-actions {
+  margin-top: 6px;
+}
+.flow-foot {
+  margin: 14px 0 0;
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.swap-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.slippage {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.slippage-label {
+  color: var(--text-2);
+  font-weight: 550;
+}
+.slippage-opts {
+  display: inline-flex;
+  gap: 4px;
+}
+.slippage-opt {
+  border: 1px solid var(--border-strong);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.slippage-opt.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 650;
+}
+.slippage-min {
+  color: var(--text-2);
+}
+.slippage-min b {
+  color: var(--text);
+}
+.card.rejected {
+  border-color: color-mix(in srgb, var(--block) 40%, var(--border));
+  background: var(--block-bg);
+}
+
+/* ── Composer (sticky) ──────────────────────────────────────────────────────── */
+.composer {
+  position: sticky;
+  bottom: 0;
+  padding: 14px 0 18px;
+  background: linear-gradient(to top, var(--canvas) 72%, transparent);
+}
+.composer form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 6px 6px 6px 18px;
+  box-shadow: var(--shadow-lg);
+  transition: border-color 0.15s;
+}
+.composer form:focus-within {
+  border-color: var(--accent);
+}
+.composer input {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  padding: 8px 0;
+}
+.composer input::placeholder {
+  color: var(--text-3);
+}
+.btn {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  border-radius: var(--radius);
+  transition:
+    background 0.15s,
+    transform 0.05s;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  padding: 11px 18px;
+  border-radius: 12px;
+  font-size: 14.5px;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-press);
+}
+.btn.primary:active {
+  transform: translateY(1px);
+}
+.btn.send {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 19px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.btn.send:hover:not(:disabled) {
+  background: var(--accent-press);
+}
+.examples {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.ex {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 13px;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.ex:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+.ex:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ex-icon {
+  font-size: 14px;
+}
+.composer-note {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────────── */
+.spin {
+  width: 15px;
+  height: 15px;
+  border: 2px solid color-mix(in srgb, var(--on-accent) 40%, transparent);
+  border-top-color: var(--on-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+}
+@keyframes blink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+@keyframes wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(18deg);
+  }
+  75% {
+    transform: rotate(-8deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MINIMAL-LUXE LAYER (Rabby × Linear). Crisp, restrained, one accent, hairline
+   borders, full-width primary CTAs. Appended last so it wins by cascade order;
+   every class name above is preserved.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+body {
+  background: var(--canvas);
+}
+.app {
+  max-width: 720px;
+}
+
+/* Brand mark — a quiet accent-tinted spark tile (no gradient) */
+.logo {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0;
+}
+.logo svg {
+  width: 15px;
+  height: 15px;
+}
+.brand h1 {
+  font-weight: 640;
+  letter-spacing: -0.015em;
+}
+header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+/* Hero — larger, tighter, calmer */
+.hero-title {
+  font-size: clamp(28px, 5vw, 34px);
+  font-weight: 660;
+  letter-spacing: -0.03em;
+}
+.hero-sub {
+  font-size: 15px;
+  color: var(--text-2);
+  max-width: 52ch;
+}
+
+/* Cards — flat white, hairline border, whisper of shadow */
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  transition: border-color 0.18s var(--ease), box-shadow 0.22s var(--ease);
+}
+
+/* Net-worth — a clean elevated panel, NOT a loud gradient. Accent stays a thin left rule. */
+.pf-net {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+}
+.pf-net-label {
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+}
+.pf-net-value {
+  color: var(--text);
+  font-size: 34px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.pf-net-sub {
+  color: var(--text-3);
+}
+.pf-net .lb-refresh {
+  color: var(--text-3);
+}
+.pf-bar-fill {
+  background: var(--accent);
+}
+.pf-asset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.pf-asset:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+/* Identity rows — quiet bordered rows, not filled boxes */
+.id-row {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease);
+}
+.id-row:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.id-icon {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border: none;
+}
+
+/* Buttons — solid indigo primary, flat. Full-width + prominent in the auth gate. */
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--radius);
+  height: 42px;
+  padding: 0 18px;
+  font-weight: 600;
+  transition: background 0.15s var(--ease), transform 0.08s var(--ease);
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-press);
+}
+.btn.primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.wallet-panel .wl-actions {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.wallet-panel .wl-actions .btn.primary {
+  width: 100%;
+}
+.wallet-panel .wl-actions .wl-link {
+  text-align: center;
+  padding: 4px;
+}
+
+/* Onboarding + create (first screens) — clean like the native app: no card box. */
+.auth .wallet-panel.onboard {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  text-align: center;
+}
+.auth .wallet-panel.onboard .wl-lead {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.auth .wallet-panel.onboard .wl-input {
+  width: 100%;
+}
+.wl-actions.onboard {
+  gap: 12px;
+  margin-top: 4px;
+}
+/* Settings — clean row pattern (title + description on the left, control on the right). */
+.set-rows {
+  display: flex;
+  flex-direction: column;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+.set-row:first-child {
+  padding-top: 2px;
+}
+.set-row:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+.set-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.set-row-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.set-row-sub {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.set-control {
+  flex: none;
+}
+.set-control .wl-asset-tab {
+  white-space: nowrap;
+}
+.set-row-nested {
+  padding: 14px 0 14px 14px;
+  margin-bottom: 2px;
+  border-left: 2px solid var(--accent-subtle, var(--border));
+  border-bottom: 1px solid var(--border);
+}
+.set-caps {
+  display: flex;
+  gap: 12px;
+}
+.set-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.set-cap .wl-input {
+  width: 96px;
+}
+@media (max-width: 620px) {
+  .set-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .set-control,
+  .wl-asset-tabs.set-control {
+    align-self: stretch;
+    width: 100%;
+  }
+}
+
+/* Activity — per-chain badge on each row (GIWA / Sepolia / Solana / Bitcoin). */
+.wl-act-chain {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  background: var(--surface2);
+  color: var(--text-2);
+}
+.wl-act-chain.c-giwa {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+.wl-act-chain.c-sepolia {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.wl-act-chain.c-solana {
+  background: #e6fbf1;
+  color: #0f766e;
+}
+.wl-act-chain.c-bitcoin {
+  background: #fef3e2;
+  color: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  .wl-act-chain.c-giwa {
+    background: #2a2140;
+    color: #b9a7f5;
+  }
+  .wl-act-chain.c-sepolia {
+    background: #16303f;
+    color: #7cc4e8;
+  }
+  .wl-act-chain.c-solana {
+    background: #14322a;
+    color: #6fd8b3;
+  }
+  .wl-act-chain.c-bitcoin {
+    background: #3a2a15;
+    color: #f0b872;
+  }
+}
+
+/* Backup screen — amber warning box + shield header, matching the native app. */
+.wl-warn {
+  background: #fdf0e2;
+  color: #b45309;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  margin: 4px 0 16px;
+}
+.auth-spark.shield {
+  background: #fbe9d6;
+  color: #d9822b;
+}
+@media (prefers-color-scheme: dark) {
+  .wl-warn {
+    background: #3a2a15;
+    color: #f0b872;
+  }
+  .auth-spark.shield {
+    background: #3a2a15;
+    color: #f0b872;
+  }
+}
+:root[data-theme='dark'] .wl-warn {
+  background: #3a2a15;
+  color: #f0b872;
+}
+:root[data-theme='dark'] .auth-spark.shield {
+  background: #3a2a15;
+  color: #f0b872;
+}
+.wl-actions.onboard .btn.primary,
+.wl-actions.onboard .btn.secondary {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 14px;
+  font-weight: 640;
+  font-size: 15px;
+}
+.btn.secondary {
+  background: var(--surface2);
+  color: var(--text);
+}
+.btn.secondary:hover {
+  background: var(--border);
+}
+
+/* Inputs — clean field, subtle focus ring */
+.wl-input,
+.wl-area {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  height: 42px;
+  transition: border-color 0.15s var(--ease), box-shadow 0.2s var(--ease);
+}
+.wl-area {
+  height: auto;
+}
+.wl-input:focus,
+.wl-area:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+/* Composer — clean pill, focus ring (no shadow-heavy treatment) */
+.composer form {
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  transition: border-color 0.16s var(--ease), box-shadow 0.2s var(--ease);
+}
+.composer form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+/* Chat bubbles — solid accent for you, quiet surface for AI */
+.bubble.you {
+  background: var(--accent);
+  border-bottom-right-radius: 6px;
+}
+.bubble.ai {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+/* Plan flow, allocation, session — accent used sparingly */
+.flow,
+.exec,
+.authz {
+  border-radius: var(--r-lg);
+}
+.ins-slice-fill {
+  background: var(--accent);
+}
+.chip {
+  transition: border-color 0.14s var(--ease), background 0.14s var(--ease);
+}
+.chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+/* Modals — clean sheet, dim (not blurred) backdrop */
+.rcv-overlay {
+  background: color-mix(in srgb, #191920 42%, transparent);
+}
+.rcv-modal,
+.wipe-modal {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.wl-asset-tab.active,
+.wl-chain-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Pre-login AUTH screen — a centered, intentional column (no floating void) */
+.auth {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 452px;
+  margin: 0 auto;
+  padding: 32px 0 48px;
+  animation: rise 0.5s var(--ease) both;
+}
+.auth-spark {
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.auth-spark svg {
+  width: 56px;
+  height: 56px;
+}
+.auth-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.auth-sub {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.5;
+  max-width: 34ch;
+  margin-bottom: 4px;
+}
+.auth .wallet-panel {
+  width: 100%;
+  text-align: left;
+  margin-top: 4px;
+  padding: 6px 2px 0;
+}
+/* Mobile-app look: drop the "Unlock your wallet / non-custodial" sub-header on the auth
+   screen (the top header bar is kept) — just the glowing spark, title and a floating form. */
+.auth .id-head {
+  display: none;
+}
+
+/* Onboarding: a wallet-card visual + feature list so it reads like a wallet, not a form. */
+.wl-hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 22px 20px;
+  margin: 6px 0 24px;
+  min-height: 210px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 26px;
+  background: linear-gradient(135deg, #6366f1 0%, #7c5cf0 46%, #a855f7 100%);
+  box-shadow: 0 14px 34px -14px rgba(99, 102, 241, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.wl-hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(130% 90% at 100% 0%, rgba(255, 255, 255, 0.22), transparent 58%);
+  pointer-events: none;
+}
+.wl-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wl-hero-brand {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.wl-hero-chip {
+  width: 36px;
+  height: 27px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #ffe08a, #f7b267);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), inset 0 -6px 8px -6px rgba(0, 0, 0, 0.3);
+}
+.wl-hero-dots {
+  font-size: 15px;
+  letter-spacing: 3px;
+  opacity: 0.92;
+  font-variant-numeric: tabular-nums;
+}
+.wl-hero-bot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.94;
+}
+.wl-hero-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.22);
+}
+.wl-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: grid;
+  gap: 11px;
+}
+.wl-features li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.wl-features li span {
+  font-size: 16px;
+  width: 22px;
+  text-align: center;
+  flex: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PREMIUM LAYER — depth + glass + glow + motion on the clean minimal composition.
+   References Apple / Stripe / Linear / Phantom / Arc for quality, not imitation.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --spark-a: #6366f1;
+  --spark-b: #a855f7;
+  /* buttons/bubbles carry small WHITE text → gradient dark enough for AA (≥4.5:1) */
+  --grad-brand: linear-gradient(135deg, var(--accent), #7c3aed);
+  --glass-bg: color-mix(in srgb, var(--surface) 74%, transparent);
+  --glass-brd: color-mix(in srgb, #ffffff 55%, var(--border));
+  --glass-blur: 20px;
+  --glow-sm: 0 6px 20px color-mix(in srgb, var(--accent) 26%, transparent);
+  --glow: 0 14px 40px color-mix(in srgb, var(--accent) 34%, transparent);
+  --shadow-xl: 0 2px 8px rgba(24, 24, 40, 0.06), 0 24px 60px rgba(24, 24, 40, 0.14);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --spark-a: #7c81ff;
+    --spark-b: #c07bff;
+    --grad-brand: linear-gradient(135deg, var(--accent-press), #6d28d9); /* AA white in dark */
+    --glass-bg: color-mix(in srgb, var(--surface) 66%, transparent);
+    --glass-brd: color-mix(in srgb, #ffffff 10%, var(--border));
+    --glow-sm: 0 6px 22px color-mix(in srgb, var(--accent) 40%, transparent);
+    --glow: 0 16px 44px color-mix(in srgb, var(--accent) 50%, transparent);
+    --shadow-xl: 0 2px 8px rgba(0, 0, 0, 0.5), 0 30px 70px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Ambient depth — a whisper of brand light behind everything (never garish) */
+body {
+  background:
+    radial-gradient(900px 460px at 12% -8%, color-mix(in srgb, var(--spark-a) 10%, transparent), transparent 60%),
+    radial-gradient(820px 480px at 100% 0%, color-mix(in srgb, var(--spark-b) 8%, transparent), transparent 58%),
+    var(--canvas);
+  background-attachment: fixed;
+}
+
+/* Brand marks — gradient + glow; the auth orb gently floats */
+.logo {
+  background: var(--grad-brand);
+  color: #fff;
+  box-shadow: var(--glow-sm);
+}
+.auth-spark:not(.shield) {
+  background: radial-gradient(circle at 50% 46%, rgba(139, 92, 246, 0.34), rgba(99, 102, 241, 0.1) 56%, transparent 74%);
+  color: #7c5cf0;
+  box-shadow: none;
+  filter: drop-shadow(0 8px 22px rgba(124, 92, 240, 0.45));
+  animation: floaty 5s var(--ease) infinite;
+}
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-spark { animation: none; }
+}
+
+/* Auth panel → card-less, mobile-app style: form floats directly, no box/border/shadow. */
+.auth .wallet-panel {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Primary button → gradient + glow + spring press */
+.btn.primary {
+  background: var(--grad-brand);
+  box-shadow: var(--glow-sm);
+  transition: filter 0.18s var(--ease), box-shadow 0.2s var(--ease), transform 0.12s var(--ease-spring);
+}
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: var(--glow);
+  transform: translateY(-1px);
+}
+.btn.primary:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Net-worth → a tasteful deep gradient hero with an inner sheen */
+.pf-net {
+  background:
+    radial-gradient(130% 130% at 100% 0%, color-mix(in srgb, var(--spark-b) 52%, transparent), transparent 52%),
+    linear-gradient(140deg, var(--spark-a), var(--accent-press));
+  color: #fff;
+  border: none;
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--accent) 36%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+.pf-net > * {
+  position: relative;
+}
+.pf-net-label { color: rgba(255, 255, 255, 0.82); }
+.pf-net-value { color: #fff; }
+.pf-net-sub { color: rgba(255, 255, 255, 0.8); }
+.pf-net .lb-refresh { color: rgba(255, 255, 255, 0.85); }
+
+/* Chat you-bubble gradient; asset cards lift on hover */
+.bubble.you {
+  background: var(--grad-brand);
+}
+.pf-asset {
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s;
+}
+.pf-asset:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Gentle page-load reveal */
+@media (prefers-reduced-motion: no-preference) {
+  .auth,
+  .hero {
+    animation: riseUp 0.5s var(--ease) both;
+  }
+  @keyframes riseUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* Wallet action grid — replaces the wall of text links */
+.wl-actgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.wl-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), border-color 0.16s, color 0.16s, box-shadow 0.16s;
+}
+.wl-act:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.wl-act-ic {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+.wl-act-ic svg {
+  width: 17px;
+  height: 17px;
+}
+.wl-act-primary .wl-act-ic {
+  background: var(--grad-brand);
+  color: #fff;
+  box-shadow: var(--glow-sm);
+}
+.wl-act-danger {
+  color: var(--block);
+}
+.wl-act-danger .wl-act-ic {
+  background: var(--block-bg);
+  color: var(--block);
+}
+@media (max-width: 560px) {
+  .wl-actgrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MOTION POLISH — skeleton loaders, result reveals, entrances. All motion is
+   gated behind prefers-reduced-motion.
+   ══════════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+  /* the plan card + async results fade + rise as they mount */
+  .flow {
+    animation: cardIn 0.4s var(--ease) both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.99); }
+    to { opacity: 1; transform: none; }
+  }
+  .authz,
+  .exec,
+  .wl-signed,
+  .err-line,
+  .tx-review,
+  .swap-quote {
+    animation: revealIn 0.32s var(--ease) both;
+  }
+  @keyframes revealIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  /* a completed stage marker gets a gentle success pop */
+  .stage.done .stage-dot,
+  .st-done,
+  .authz-allow {
+    animation: pop 0.34s var(--ease-spring) both;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.7); opacity: 0.4; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+}
+
+/* Skeleton shimmer — loading placeholders read as "loading", not as a value */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface2);
+  border-radius: 8px;
+  color: transparent !important;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text-3) 20%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.3s infinite;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+.sk-nw {
+  display: inline-block;
+  width: 128px;
+  height: 34px;
+  border-radius: 10px;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.22);
+}
+.sk-nw::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY — WCAG AA contrast + a screen-reader-only utility.
+   ══════════════════════════════════════════════════════════════════════════════ */
+/* Net-worth hero: drop the light radial so small white labels clear AA on the gradient */
+.pf-net {
+  background: linear-gradient(140deg, var(--accent), var(--accent-press));
+}
+.pf-net-label {
+  color: rgba(255, 255, 255, 0.92);
+}
+.pf-net-sub {
+  color: rgba(255, 255, 255, 0.9);
+}
+/* Explicit placeholder colour (browser default is lighter than AA) */
+.wl-input::placeholder,
+.wl-area::placeholder,
+.composer input::placeholder {
+  color: var(--text-3);
+  opacity: 1;
+}
+/* Dark active tabs: near-white label (not accent-on-tint) + accent border affordance */
+@media (prefers-color-scheme: dark) {
+  .wl-asset-tab.active,
+  .wl-chain-tab.active {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+}
+/* Visually-hidden but screen-reader-available */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NAVIGATION SHELL — the organised app: a sidebar of 5 sections on desktop that
+   collapses to a bottom tab bar on mobile, with profile/identity in an Account
+   menu. Only active after unlock (`.app.entered`); the auth screen is untouched.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.app.entered {
+  max-width: none;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+.app.entered header {
+  flex: 0 0 auto;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+}
+
+/* Sidebar (desktop) */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14.5px;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.nav-item:hover {
+  background: color-mix(in srgb, var(--accent-subtle) 60%, transparent);
+  color: var(--text);
+}
+.nav-item.active {
+  background: var(--accent-subtle);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.nav-ic {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  color: currentColor;
+}
+.nav-ic svg {
+  width: 20px;
+  height: 20px;
+}
+.nav-item.active .nav-ic {
+  color: var(--accent);
+}
+.nav-lbl {
+  flex: 1;
+}
+.nav-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nav-lock {
+  align-self: flex-start;
+}
+
+/* Account chip → opens the Account menu */
+.account-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.account-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.account-chip.compact {
+  width: auto;
+  padding: 7px 12px;
+}
+.acct-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.acct-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.25;
+}
+.acct-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.acct-addr {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Main scroll area */
+.main {
+  height: 100%;
+  overflow-y: auto;
+}
+.view-top {
+  display: none; /* desktop: the chip lives in the sidebar footer */
+}
+.view {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 24px 44px;
+}
+
+/* Section rhythm + Home */
+.hv {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.hv-greet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hv-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+.hv-sub {
+  margin: 0;
+  max-width: 56ch;
+  font-size: 14.5px;
+  color: var(--text-2);
+}
+.sect-head {
+  margin-bottom: 2px;
+}
+.sect-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+.sect-empty {
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.hv-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.hv-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 560;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+.hv-act:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  transform: translateY(-1px);
+}
+.hv-act.primary {
+  border-color: transparent;
+  background: var(--grad-brand, var(--accent));
+  color: #fff;
+}
+.hv-act-ic {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+}
+.hv-act-ic svg {
+  width: 22px;
+  height: 22px;
+}
+.hv-act.primary .hv-act-ic {
+  color: #fff;
+}
+
+.hv-ai {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hv-ai input {
+  flex: 1;
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+}
+.hv-ai input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.hv-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Settings section — grouped rows */
+.set-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.set-label {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+.sect-card {
+  padding: 6px;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 13px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 520;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.set-row:hover {
+  background: var(--accent-subtle);
+}
+.set-row + .set-row {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+.set-row-cta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.set-row.danger,
+.set-row.danger .set-row-cta {
+  color: var(--block);
+}
+
+/* AI section */
+/* Chat layout: the whole AI view fills the main's height, the feed scrolls INTERNALLY, and the
+ * composer is the last flex child so it sits pinned at the bottom — even on an empty conversation
+ * (feed flex-grows to fill the gap). `min-height: 0` on each flex parent is what lets the feed
+ * actually scroll instead of stretching the column. */
+.view-ai {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 16px;
+}
+.ai-sec {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ai-sec .feed {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ai-sec .composer {
+  flex: 0 0 auto;
+}
+.ai-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-2);
+}
+.ai-empty-spark {
+  width: 40px;
+  height: 40px;
+  color: var(--accent);
+}
+.ai-empty-spark svg {
+  width: 40px;
+  height: 40px;
+}
+.ai-empty-h {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 620;
+  color: var(--text);
+}
+.ai-empty-sub {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 14px;
+}
+
+.account-menu {
+  max-width: 460px;
+}
+.wl-send-modal {
+  max-width: 560px;
+}
+
+/* Bottom tab bar (mobile only) */
+.navbar-bottom {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    display: none;
+  }
+  .view {
+    max-width: 100%;
+    padding: 16px 16px 92px;
+  }
+  .view-top {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 16px 0;
+  }
+  .navbar-bottom {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+  }
+  .bnav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-height: 44px;
+    padding: 6px 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-3);
+    font-size: 10.5px;
+    font-weight: 560;
+    cursor: pointer;
+  }
+  .bnav-ic {
+    width: 22px;
+    height: 22px;
+  }
+  .bnav-ic svg {
+    width: 22px;
+    height: 22px;
+  }
+  .bnav-item.active {
+    color: var(--accent);
+  }
+  .bnav-item.active .bnav-ic {
+    color: var(--accent);
+  }
+  .hv-title {
+    font-size: 22px;
+  }
+}
+@media (max-width: 480px) {
+  .hv-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Back control on every overlay/sheet ─────────────────────────────────────── */
+.modal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 12px -4px;
+  padding: 6px 10px 6px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 560;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.modal-back:hover {
+  background: var(--accent-subtle);
+  color: var(--text);
+}
+.modal-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Universal Portfolio: collapsed address editor + clean error notice ───────── */
+.ub-edit {
+  margin: 4px 0 12px;
+  padding: 0 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.ub-edit > summary {
+  padding: 11px 2px;
+  font-size: 13.5px;
+  font-weight: 560;
+  color: var(--text-2);
+  cursor: pointer;
+  list-style: none;
+}
+.ub-edit > summary::-webkit-details-marker {
+  display: none;
+}
+.ub-edit > summary::before {
+  content: "＋ ";
+  color: var(--accent);
+}
+.ub-edit[open] > summary::before {
+  content: "− ";
+}
+.ub-edit[open] > summary {
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.ub-edit > summary:hover {
+  color: var(--text);
+}
+.ub-edit .wl-flabel:first-of-type {
+  margin-top: 0;
+}
+.ub-note {
+  margin: 10px 0 0;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--medium) 40%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--medium) 10%, transparent);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Real-mainnet confirm (the GuardAck moment — irreversible, real funds) ────── */
+.mn-confirm {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--block) 55%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--block) 8%, var(--surface));
+}
+.mn-h {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--block);
+}
+.mn-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.mn-addr {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+.mn-hv {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.reveal-auth {
+  padding: 8px 6px;
+}
+
+/* ── Account switcher — a clean list (replaces the wrapping "Account N" pill grid) ── */
+.acct-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+/* Each account row pairs the switch-button with a small key-export button beside it. */
+.acct-item-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.acct-item-wrap .acct-item {
+  flex: 1;
+}
+.acct-key-btn {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 7px 9px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+.acct-key-btn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent-subtle) 55%, transparent);
+}
+.acct-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.acct-item:hover {
+  background: color-mix(in srgb, var(--accent-subtle) 55%, transparent);
+}
+.acct-item.active {
+  background: var(--accent-subtle);
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.acct-item-ava {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.acct-item.active .acct-item-ava {
+  background: var(--grad-brand, var(--accent));
+  color: #fff;
+}
+.acct-item-ava.add {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--accent);
+}
+.acct-item-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.acct-item-name {
+  font-size: 14px;
+  font-weight: 560;
+}
+.acct-item-addr {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.acct-item-check {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
+}
+.acct-add .acct-item-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Advanced bridge (Jumper-style) ─────────────────────────────────────────── */
+.brg-sub { color: var(--muted); font-size: 13px; }
+.brg-card { display: flex; flex-direction: column; gap: 10px; max-width: 540px; }
+.brg-leg { background: var(--canvas); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.brg-leg-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.brg-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.brg-select { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 6px 10px; font-size: 13.5px; color: var(--text); font-weight: 600; cursor: pointer; }
+.brg-amt { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.brg-amt-in { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font-size: 27px; font-weight: 700; color: var(--text); }
+.brg-amt.receive .brg-recv { font-size: 27px; font-weight: 700; color: var(--text); }
+.brg-asset { font-size: 15px; font-weight: 700; color: var(--muted); }
+.brg-swap { align-self: center; width: 34px; height: 34px; margin: -14px 0; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 15px; cursor: pointer; z-index: 1; box-shadow: var(--shadow); transition: border-color .15s var(--ease); }
+.brg-swap:hover { border-color: var(--accent); color: var(--accent); }
+.brg-recip { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin-top: 2px; }
+.brg-recip input { background: var(--canvas); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 11px; font-size: 12.5px; color: var(--text); font-family: ui-monospace, "SF Mono", monospace; text-transform: none; letter-spacing: 0; }
+.brg-route { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); padding: 0 2px; }
+.brg-go { width: 100%; margin-top: 4px; }
+.brg-note { text-align: center; padding: 8px; margin: 0; }
+.brg-err { margin: 2px 0 0; }
+.brg-status { display: flex; flex-direction: column; gap: 9px; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 13px; }
+.brg-step { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text); opacity: .45; transition: opacity .2s var(--ease); }
+.brg-step.active, .brg-step.done { opacity: 1; }
+.brg-step.done b::before { content: '✓ '; color: var(--low); }
+.brg-step.active b::before { content: '⟳ '; color: var(--accent); }
+.brg-step a { color: var(--accent); text-decoration: none; font-family: ui-monospace, "SF Mono", monospace; font-size: 12px; white-space: nowrap; }
+.brg-step a:hover { text-decoration: underline; }
+
+/* ── Import private key (account menu) ───────────────────────────────────────── */
+.acct-item-ava.imp { background: var(--accent-subtle); color: var(--accent); }
+.acct-imp-badge { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); background: var(--accent-subtle); padding: 1px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; }
+.acct-import { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--border-strong); border-radius: var(--radius); margin-top: 2px; }
+.acct-import-in { background: var(--canvas); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 11px; font-size: 13px; color: var(--text); font-family: ui-monospace, "SF Mono", monospace; }
+.acct-import-in:focus { outline: none; border-color: var(--accent); }
+.acct-import-note { font-size: 11.5px; color: var(--muted); margin: 0; line-height: 1.4; }
+.acct-import-err { font-size: 12px; color: var(--block); margin: 0; }
+.acct-import-row { display: flex; align-items: center; gap: 12px; }
+.acct-import-row .btn.primary { flex: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Elegance pass — cohesive premium polish. Appended last so it wins by source
+   order without untangling the three earlier layers. All values are token-based
+   so light + dark both hold. Verified on the design harness (dev-design.html).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Headline: give the wave room to breathe; tighten the type. */
+.hv-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+.hv-sub {
+  color: var(--text-2);
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+/* Section headers: quiet, confident, consistent rhythm. */
+.sect-title {
+  font-weight: 660;
+  letter-spacing: -0.02em;
+}
+.sect-head {
+  margin-bottom: 16px;
+}
+
+/* Net-worth hero: a deeper, calmer gradient with a soft floor glow — premium, not loud. */
+.pf-net {
+  background:
+    radial-gradient(120% 150% at 88% -12%, color-mix(in srgb, var(--spark-b) 44%, transparent), transparent 56%),
+    linear-gradient(146deg, color-mix(in srgb, var(--spark-a) 90%, #000 10%), var(--accent-press));
+  padding: 26px 26px 28px;
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 28px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 30px 64px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.pf-net-label {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  color: rgba(255, 255, 255, 0.74);
+}
+.pf-net-value {
+  font-size: 40px;
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  margin-top: 7px;
+  line-height: 1.05;
+}
+.pf-net-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.76);
+  margin-top: 5px;
+}
+
+/* Asset cards: clearer hierarchy, warm hover, tabular figures. */
+.pf-asset {
+  padding: 15px 16px;
+  border-radius: 14px;
+}
+.pf-asset-sym {
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+.pf-asset-share {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.pf-asset-amt {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.pf-asset-val {
+  font-weight: 640;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pf-asset:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+}
+
+/* Sidebar nav: calm idle, confident active. */
+.nav-item {
+  border-radius: 11px;
+  font-weight: 550;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.nav-item:hover {
+  background: var(--surface2);
+}
+.nav-item.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 620;
+}
+.nav-item.active .nav-ic {
+  color: var(--accent);
+}
+
+/* Activity rows: room to breathe + a quiet hover. */
+.activity-row {
+  border-radius: 9px;
+  transition: background 0.14s var(--ease);
+}
+.activity-row:hover {
+  background: var(--surface2);
+}
+
+/* Settings rows: a touch more space + a warm hover. */
+.set-row {
+  transition: background 0.14s var(--ease);
+}
+.set-row:hover {
+  background: var(--surface2);
+}
+.set-label {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+}
+
+/* Primary action tiles: a subtle spring lift. */
+.hv-act {
+  transition: transform 0.18s var(--ease-spring), box-shadow 0.2s var(--ease), filter 0.18s var(--ease);
+}
+.hv-act:hover {
+  transform: translateY(-2px);
+  filter: saturate(1.04);
+}
+
+/* ── Elegance pass · AI-Chat plan card ─────────────────────────────────────── */
+
+/* A touch more room; the card is the product's centrepiece. */
+.flow,
+.card.info,
+.card.rejected {
+  padding: 22px 22px;
+}
+.flow-lead {
+  font-size: 16.5px;
+  font-weight: 580;
+  letter-spacing: -0.015em;
+  line-height: 1.4;
+}
+
+/* Cohesive risk pills — same shape across every level, semantic color. */
+.risk-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.risk-badge.low {
+  color: var(--low);
+  background: var(--low-bg);
+}
+.risk-badge.medium {
+  color: var(--medium);
+  background: var(--medium-bg);
+}
+.risk-badge.high {
+  color: var(--high);
+  background: var(--high-bg);
+}
+.risk-badge.block {
+  color: var(--block);
+  background: var(--block-bg);
+}
+
+/* Stage titles: confident; done-dots get a slightly richer green. */
+.stage-title {
+  font-weight: 620;
+  letter-spacing: -0.005em;
+}
+.stage-done .stage-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--low) 10%, transparent);
+}
+
+/* Cost grid: tabular values, a hairline separator so it reads as a receipt. */
+.cost {
+  padding-top: 10px;
+  margin-top: 2px;
+  border-top: 1px solid var(--border);
+}
+.cost-k {
+  text-transform: uppercase;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+}
+.cost-v {
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Executed-tx success panel: calmer, more refined. */
+.wl-signed {
+  border-radius: 12px;
+}
+.wl-mono {
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+/* ── Elegance pass · Settings segmented controls + Portfolio insights ───────── */
+
+/* A true segmented control: one rounded track, the active segment tinted like the
+   nav pill (consistent, works light + dark). Scoped to .set-control so the Send
+   sheet's asset picker (bare .wl-asset-tabs) is untouched. */
+.wl-asset-tabs.set-control {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  margin-bottom: 0;
+  padding: 3px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.set-control .wl-asset-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 9px;
+  padding: 6px 13px;
+  font-weight: 600;
+  transition: color 0.14s var(--ease), background 0.14s var(--ease);
+}
+.set-control .wl-asset-tab:hover {
+  color: var(--text);
+}
+.set-control .wl-asset-tab.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+/* Insight metric tiles: crisp, bordered, tabular. */
+.ins-grid {
+  gap: 10px;
+}
+.ins-stat {
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+}
+.ins-k {
+  text-transform: uppercase;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+}
+.ins-v {
+  font-weight: 660;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ins-v small {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.ins-health {
+  color: var(--accent);
+}
+
+/* Allocation bars: a subtle track + a gradient fill that ties to the hero. */
+.ins-slice-bar {
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ins-slice-fill {
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 62%, var(--spark-b)));
+  border-radius: 999px;
+}
+.ins-slice-k {
+  font-weight: 600;
+}
+.ins-slice-w {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ins-item {
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.ins-title {
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+
+/* ── Root height chain — fixes the AI composer floating at the top ──────────────
+   The unlocked app mounts .shell DIRECTLY on #root (no .app wrapper), and
+   html/body/#root carry no height, so every `height: 100%` below collapsed to
+   content height — the feed couldn't grow and the composer sat at the top.
+   Give the shell a real viewport height (100dvh handles mobile browser chrome);
+   the AI feed then fills the gap and the composer pins to the bottom. */
+html,
+body,
+#root {
+  height: 100%;
+}
+.shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* ── Home: pin the "Ask AI" composer to the bottom, chat-page style ────────────
+   The greeting, net-worth and action tiles sit at the top; the composer + example
+   chips get pushed to the bottom via margin-top:auto in a full-height flex column.
+   On tall content it simply flows below the fold (nothing is clipped). */
+.view-home {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.view-home > .hv {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.view-home .hv-ai {
+  margin-top: auto;
+}
+
+/* ── elegance pass · GIWA-native identity (append-only, wins by source order) ──
+   One seed, one HOME chain. GIWA leads by position + a single restrained accent
+   gesture (inset rail + whisper tint); Bitcoin/Solana recede to airy borderless
+   rows. Every value derives from existing tokens — verified in light AND dark. */
+
+/* Quiet section structure: a hairline + small uppercase label separate the
+   copy-to-receive addresses from the account switcher above. */
+.id-section {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.id-section-label {
+  margin: 0 0 9px;
+  padding: 0 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Calm list: tighter rhythm; secondary rows shed their always-on borders so
+   GIWA leads by contrast, not by piled-on emphasis. :not() keeps the home row
+   untouched, avoiding any equal-specificity restore dance. */
+.id-rows { gap: 6px; }
+.id-rows .id-row:not(.id-row--home) {
+  border-color: transparent;
+  background: transparent;
+}
+.id-rows .id-row:not(.id-row--home):hover {
+  border-color: var(--border-strong);
+  background: var(--surface2);
+}
+
+/* Keyboard accessibility for the copy rows. */
+.id-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Name + Home badge share one baseline; the home row grows to a 3-line stack. */
+.id-chain-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+
+/* ── GIWA home row: visually primary via one accent rail + a whisper tint ── */
+.id-row--home {
+  align-items: flex-start;
+  padding: 12px 13px 12px 15px;             /* extra left inset makes room for the rail */
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--accent);  /* the premium "home" left-rail */
+}
+.id-row--home:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.id-row--home .id-chain-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.id-row--home .id-chain-net { color: var(--text-2); }
+/* Optically center the address against the taller 3-line home stack. */
+.id-row--home .id-addr { align-self: center; color: var(--text); }
+
+/* GIWA monogram "G" — the one sparing use of --grad-brand, signalling home.
+   var(--on-accent, #fff) guards dark mode, where --on-accent is undefined. */
+.id-icon--home {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 9px;
+  background: var(--grad-brand);
+  color: var(--on-accent, #fff);
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+/* "Home" badge — tiny accent pill, quiet not loud. */
+.id-home-badge {
+  flex: none;
+  padding: 1px 7px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 999px;
+}
+
+/* Honest shared-address footnote — the third, lighter line on the home row.
+   Turns the OP-Stack shared keypair into an explained fact, not a duplicate. */
+.id-chain-sub {
+  margin-top: 3px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-3);
+}
+
+/* ── Global footer — project resources + founder links, subtle, on every screen.
+   Deliberately understated — a wallet must never read like a shill page. */
+.app-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 28px;
+  padding: 16px 12px 22px;
+  font-size: 12px;
+  color: var(--text-3);
+  border-top: 1px solid var(--border);
+}
+.app-foot a {
+  color: var(--text-3);
+  text-decoration: none;
+}
+.app-foot a:hover {
+  color: var(--accent);
+}
+.app-foot .foot-dot {
+  color: var(--border-strong);
+}

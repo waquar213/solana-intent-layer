@@ -1,0 +1,38 @@
+{
+  "name": "@intent-wallet/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The composition root — the first place the engines are wired to each other into a runnable wallet. It assembles the Intent Engine over REAL sources: the Risk Engine (pure, standalone → wired for real), identity recipient resolution (ContactBook), in-memory holdings, and — where a network vendor isn't available yet — deterministic price/route stubs clearly marked for replacement. One call: natural language → a verified ExecutionPlan (or clarify / rejection). It proposes a plan; it never signs — execution needs the plan plus a device signature downstream.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/core": "workspace:*",
+    "@intent-wallet/intents": "workspace:*",
+    "@intent-wallet/risk": "workspace:*",
+    "@intent-wallet/identity": "workspace:*",
+    "@intent-wallet/portfolio": "workspace:*",
+    "@intent-wallet/execution": "workspace:*",
+    "@intent-wallet/chains": "workspace:*",
+    "@intent-wallet/policy": "workspace:*",
+    "@intent-wallet/gas": "workspace:*",
+    "@intent-wallet/capabilities": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

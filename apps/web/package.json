@@ -1,0 +1,31 @@
+{
+  "name": "@intent-wallet/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The wallet's web client (Vite/React). Natural-language intents are parsed, planned, risk-checked and signed IN-BROWSER (non-custodial): it runs client-side sends/swaps/staking/bridges over @intent-wallet/chains and uses the Intent API for planning + portfolio.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/chains": "workspace:*",
+    "@intent-wallet/core": "workspace:*",
+    "@intent-wallet/intents": "workspace:*",
+    "@intent-wallet/sdk": "workspace:*",
+    "@vercel/analytics": "^2.0.1",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.11"
+  }
+}

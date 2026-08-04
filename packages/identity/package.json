@@ -1,0 +1,31 @@
+{
+  "name": "@intent-wallet/identity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Universal Identity Engine: identity model, cross-ecosystem address management, resolution, and contacts. Makes chains invisible.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/core": "workspace:*",
+    "@noble/hashes": "^1.7.0",
+    "@scure/base": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

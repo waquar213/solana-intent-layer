@@ -1,0 +1,17 @@
+# Base kustomization — the deployable unit for the API. The release pipeline
+# (.github/workflows/release.yml) stamps the freshly-built, cosign-signed image
+# digest onto this via `kustomize edit set image`, so the cluster only ever runs
+# an image built and signed by CI — never a floating `:latest`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - api.deployment.yaml
+  - api.service.yaml
+
+# Overridden per-deploy by CI: `kustomize edit set image intent-wallet/api=ghcr.io/<org>/api@sha256:<digest>`.
+images:
+  - name: intent-wallet/api
+    newName: intent-wallet/api
+    newTag: latest

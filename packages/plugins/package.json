@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/plugins",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plugin Marketplace & Extension SDK — the security foundation that turns the platform into an ecosystem. Third parties extend it WITHOUT modifying core: a plugin proposes, deterministic code verifies, the device signature disposes. Capability-based permissions where keys/signing/DB access are structurally ABSENT from the vocabulary (a plugin can't request what it can never be given); TRUST LEVELS (official/verified/community/experimental) that cap permissions and drive warnings; plugin signing + code-hash integrity + authorized-signer + revocation (supply-chain); semver compatibility + dependency resolution; a sandbox capability gate + resource limits; a lifecycle state machine with health-driven auto-suspend; and event-subscription authorization. The isolate runtime, scanners, store and CLI are infra; this is the deterministic policy core they enforce.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

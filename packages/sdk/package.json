@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The official TypeScript SDK for the Intent Wallet API — a zero-dependency, framework-agnostic typed client for the /v1 surface (plan → authorize → execute + portfolio + status). Mirrors the wire exactly (money is decimal strings, never bigint), surfaces RFC 9457 problem+json as a typed ApiError, and injects its HTTP transport so it runs and tests in any runtime with no network. Signing stays server-side (the runtime's device-signer seam) — the SDK never holds keys. A boring functional core with a thin fluent client on top.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

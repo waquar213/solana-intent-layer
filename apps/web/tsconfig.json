@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@intent-wallet/sdk": ["../../packages/sdk/src/index.ts"],
+      "@intent-wallet/core": ["../../packages/core/src/index.ts"],
+      "@intent-wallet/chains": ["../../packages/chains/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

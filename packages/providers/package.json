@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/providers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Universal provider framework: pluggable swap/bridge/price/gas/simulation providers with health scoring, circuit breaking, failover, and quote aggregation. No provider is ever hardcoded.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

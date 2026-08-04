@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/reliability",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reliability & Self-Healing engine — the SRE brain. Turns SLIs into error-budget burn, fires multi-window burn-rate + threshold alerts, and DECIDES bounded recovery actions (failover, reroute, restart, retry, scale, circuit-break, escalate). It decides; an injected actuator acts — the engine never restarts or scales anything itself, and never loops.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

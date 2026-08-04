@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/scale",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Global Scale & Resilience engine — the deterministic decision core that lets the platform grow from 1k to 100M+ users without a redesign. A bounded horizontal AUTOSCALER (metrics → desired replicas, clamped + anti-flap), a resilience toolkit (token-bucket rate limiter, concurrency bulkhead, generic circuit breaker, backoff+retry classifier, priority load-shedder), a multi-region ROUTER (active-active weighted / active-passive failover) and a CACHE-INVALIDATION engine. It DECIDES; an injected actuator ACTS — the engine never scales, drops, or reroutes anything itself, and every decision is bounded so a bug can't cause a scale-storm or a brown-out.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

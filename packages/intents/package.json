@@ -1,0 +1,31 @@
+{
+  "name": "@intent-wallet/intents",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Universal Intent Engine: natural language → validated Intent → ExecutionPlan. The decision engine that orchestrates the wallet. AI proposes; deterministic code verifies.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/identity": "workspace:*",
+    "@intent-wallet/portfolio": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

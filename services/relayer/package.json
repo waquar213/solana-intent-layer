@@ -1,0 +1,18 @@
+{
+  "name": "@intent-wallet/relayer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Operator bridge relayer — reads BRDG memos from operator deposits and releases on the destination. Idempotent, finality-gated, dry-run by default.",
+  "scripts": {
+    "pending": "node relayer.mjs pending",
+    "release": "node relayer.mjs release",
+    "watch": "node relayer.mjs watch"
+  },
+  "dependencies": {
+    "@intent-wallet/chains": "workspace:*",
+    "@intent-wallet/core": "workspace:*",
+    "@noble/curves": "^1.8.0",
+    "@scure/base": "^1.2.1"
+  }
+}

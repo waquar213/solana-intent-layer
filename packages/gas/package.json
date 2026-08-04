@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/gas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gas Abstraction & Smart-Account engine — the deterministic decision core for 'users shouldn't think about gas'. Decides gas SPONSORSHIP (bounded by a per-tx + per-user-per-day budget so a bug can't drain the paymaster), FEE-TOKEN selection (pay gas in USDC/any token, min-cost), BOUNDED gas params (never overpay during a fee spike), and smart-account BATCHING (fold N ops into one UserOperation). It DECIDES; it never signs or moves funds — the ERC-4337 UserOperation construction + paymaster signing is execution/infra. Deterministic (time injected) and offline-testable. Standalone.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

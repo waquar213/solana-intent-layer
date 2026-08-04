@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="icon" href="/favicon.ico">
+<title>Intent Wallet — Technical One-Pager</title>
+<meta name="description" content="Architecture and technical execution of Intent Wallet — an AI-native, non-custodial wallet on GIWA.">
+<meta property="og:title" content="Intent Wallet — Technical One-Pager">
+<meta property="og:description" content="Architecture & technical execution — AI-native, non-custodial wallet on GIWA. AI proposes, deterministic code verifies, the device signature disposes.">
+<style>
+  :root{
+    --bg:#09090f; --bg2:#101018; --hair:rgba(255,255,255,.09); --hair2:rgba(255,255,255,.14);
+    --ink:#f3f3f7; --ink2:#a9a9b6; --ink3:#6d6d7c; --accent:#8b83ff; --violet:#b06cf5;
+    --good:#3ad089; --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    --grad:linear-gradient(135deg,var(--accent),var(--violet));
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.65;
+    -webkit-font-smoothing:antialiased;font-feature-settings:"cv01","ss01"}
+  .wrap{max-width:780px;margin:0 auto;padding:64px 28px 100px}
+  .mark{display:flex;align-items:center;gap:11px;margin-bottom:30px}
+  .mark-tile{width:36px;height:36px;border-radius:10px;background:var(--grad);display:grid;place-items:center;color:#fff;font-size:18px;box-shadow:0 6px 20px rgba(139,131,255,.35)}
+  .mark-sub{color:var(--ink3);font-size:12px;letter-spacing:.02em}
+  h1{font-size:clamp(28px,4vw,40px);line-height:1.08;letter-spacing:-.03em;font-weight:660;margin:0 0 10px;text-wrap:balance}
+  .lead{font-size:17px;color:var(--ink2);margin:0 0 6px;max-width:60ch}
+  .lead b{color:var(--ink);font-weight:600}
+  .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  h2{font-size:12px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);
+     margin:44px 0 14px;display:flex;align-items:center;gap:9px}
+  h2::before{content:"";width:20px;height:1.5px;background:var(--accent);opacity:.6}
+  p{margin:0 0 12px;color:var(--ink2);font-size:15px}
+  p b,li b{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:12.5px;color:var(--accent);background:rgba(139,131,255,.1);padding:1px 6px;border-radius:6px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  ul{margin:0 0 12px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+  ul li{color:var(--ink2);font-size:15px;display:flex;gap:11px}
+  ul li::before{content:"→";color:var(--accent);font-weight:700;flex:none}
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 4px;font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
+  .flow .n{padding:7px 12px;border:1px solid var(--hair);border-radius:9px;background:var(--bg2);color:var(--ink)}
+  .flow .n.a{border-color:rgba(139,131,255,.3);color:var(--accent)}
+  .flow .ar{color:var(--ink3)}
+  .rec{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .rec .r{display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:center;background:var(--bg2);border:1px solid var(--hair);border-radius:11px;padding:11px 14px}
+  .rec .k{font-weight:600;font-size:13.5px}
+  .rec .v{font-family:var(--mono);font-size:11.5px;color:var(--ink2);overflow-x:auto;white-space:nowrap}
+  .note{margin-top:16px;padding:14px 16px;border-left:2px solid var(--accent);background:rgba(139,131,255,.06);border-radius:0 10px 10px 0;color:var(--ink2);font-size:14.5px}
+  .note b{color:var(--ink)}
+  hr{border:none;border-top:1px solid var(--hair);margin:40px 0 0}
+  @media(max-width:560px){.rec .r{grid-template-columns:1fr;gap:4px}}
+</style></head>
+<body>
+<div class="wrap">
+
+  <div class="mark"><div class="mark-tile">✦</div><div>
+    <div style="font-weight:640;letter-spacing:-.01em">Intent Wallet</div>
+    <div class="mark-sub">Technical One-Pager · GIWA · GASOK</div>
+  </div></div>
+
+  <h1>An AI-native wallet with a security layer that <span class="grad">refuses to lose your money.</span></h1>
+  <p class="lead">Tell it what you want in plain English. A <b>deterministic parser</b> turns it into a typed intent, the planner <b>verifies it against the real world</b>, and it signs <b>on your device</b> — or refuses, and tells you why. Built on <b>GIWA</b> (Upbit/Dunamu OP-Stack L2, chainId 91342).</p>
+
+  <h2>The pipeline</h2>
+  <p>Natural language becomes a typed intent with <b>no model round-trip</b> for common asks — the LLM is only a fallback. Everything is verified before a signature is even possible.</p>
+  <div class="flow">
+    <span class="n">plain English</span><span class="ar">→</span>
+    <span class="n a">deterministic parser</span><span class="ar">→</span>
+    <span class="n">typed intent</span><span class="ar">→</span>
+    <span class="n a">planner + Sentinel</span><span class="ar">→</span>
+    <span class="n">device signature</span><span class="ar">→</span>
+    <span class="n">on-chain</span>
+  </div>
+
+  <h2>Sentinel — the security layer</h2>
+  <p>One rule, five expressions: <b>when the wallet can't safely deliver what you asked, it refuses to sign — before signature, not after.</b></p>
+  <ul>
+    <li><b>Address poisoning</b> — catches a lookalike on a first-ever send, using on-chain history.</li>
+    <li><b>EIP-55 checksum</b> — one mistyped character fails its checksum and is stopped.</li>
+    <li><b>Cumulative-drain guard</b> — a drain split across several under-threshold sends is caught on the one that completes it.</li>
+    <li><b>Recipient never dropped</b> — an unparsed address is never silently discarded; the wallet asks instead of guessing.</li>
+    <li><b>Undeliverable-route refusal</b> — a route it can't finish end-to-end is refused, not attempted and lost.</li>
+  </ul>
+  <div class="note"><b>The discipline is the product.</b> Address poisoning alone: 270M attempts, 17M victims, $83.8M stolen (USENIX Security '25). A wallet should catch this <b>before</b> you sign.</div>
+
+  <h2>On-chain execution — all source-verified on GIWA</h2>
+  <p><b>IntentExecutor</b> runs a plan atomically (all-or-nothing) and binds the plan hash to the on-chain result. A native DEX (<b>SimpleAMM</b> + <b>gUSDC</b>) and <b>SimpleStaking</b> give a full DeFi stack, and a <b>canonical OP-Stack bridge</b> (Ethereum Sepolia → GIWA, ~60s, non-custodial) is proven on-chain (L1 <code>0xb1c8d047…</code> → L2 <code>0x9565a720…</code>, 62s).</p>
+  <div class="rec">
+    <div class="r"><span class="k">IntentExecutor</span><span class="v"><a href="https://sepolia-explorer.giwa.io/address/0x4b69e04441809e41313665cCfe99F4154d40B1b8">0x4b69e04441809e41313665cCfe99F4154d40B1b8</a></span></div>
+    <div class="r"><span class="k">SimpleAMM</span><span class="v"><a href="https://sepolia-explorer.giwa.io/address/0x213ca9C221612011Ad2bb545A6736DA300aFbF83">0x213ca9C221612011Ad2bb545A6736DA300aFbF83</a></span></div>
+    <div class="r"><span class="k">gUSDC (TestUSDC)</span><span class="v"><a href="https://sepolia-explorer.giwa.io/address/0x3a82A52C1C4e9E3d12DA71BF7f8E6B421Fb73277">0x3a82A52C1C4e9E3d12DA71BF7f8E6B421Fb73277</a></span></div>
+    <div class="r"><span class="k">SimpleStaking</span><span class="v"><a href="https://sepolia-explorer.giwa.io/address/0x52fe375267253fDaE08F46162545F3708d25eE5C">0x52fe375267253fDaE08F46162545F3708d25eE5C</a></span></div>
+  </div>
+
+  <h2>Architecture</h2>
+  <ul>
+    <li><b>6-layer strict-DAG monorepo</b> — <i>chains build, core signs</i>. The signing core holds no chain logic; chain modules hold no keys.</li>
+    <li><b>Non-custodial</b> — keys are generated and sealed <b>on device</b> (BIP-39/32/84, EVM + Bitcoin + Solana) and never touch a server.</li>
+    <li><b>Float-free money paths</b> — every amount is exact integer math; no floating-point drift, ever.</li>
+    <li><b>600+ tests</b> across parser, planner, guards, chains, and the deployed API path.</li>
+  </ul>
+
+  <h2>Routing — a seam, not a rewrite</h2>
+  <p>One <code>RouteProvider</code> interface picks the venue; <b>no DEX or bridge is hardcoded</b>. Testnet composes GIWA's on-chain AMM and the canonical bridge today; mainnet registers audited aggregators (0x / 1inch / LI.FI · Wormhole / CCTP) through the same seam — <b>and the safety layer doesn't change.</b> Unsupported routes are refused before signature, never faked.</p>
+
+  <h2>Stack & deployment</h2>
+  <ul>
+    <li><b>Contracts:</b> Solidity + Foundry (EVM); Anchor/Rust (Solana devnet twin).</li>
+    <li><b>App:</b> TypeScript — Vite SPA (client-side signing) over a Fastify API.</li>
+    <li><b>Live:</b> frontend on Vercel, backend on Railway. Keyed RPC is proxied server-side — no secret ships in the bundle.</li>
+  </ul>
+
+  <h2>Links</h2>
+  <ul>
+    <li><b>Live demo:</b> <a href="https://giwa-intent-wallet-web.vercel.app">giwa-intent-wallet-web.vercel.app</a></li>
+    <li><b>Pitch deck:</b> <a href="https://giwa-intent-wallet-web.vercel.app/pitch.html">giwa-intent-wallet-web.vercel.app/pitch.html</a></li>
+    <li><b>On-chain (Blockscout):</b> <a href="https://sepolia-explorer.giwa.io">sepolia-explorer.giwa.io</a></li>
+  </ul>
+
+  <hr>
+  <p style="color:var(--ink3);font-size:13px;margin-top:22px">Intent Wallet · built on GIWA · Upbit / Dunamu OP-Stack L2 · chainId 91342</p>
+
+</div>
+</body></html>

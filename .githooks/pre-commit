@@ -1,0 +1,12 @@
+#!/bin/sh
+# Fast local gate before a commit (handbook 03 §6). Kept quick: typecheck + lint
+# of the workspace. Full tests run in CI. Skip with `git commit --no-verify` only
+# when you know what you're doing.
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+echo "pre-commit: typecheck…"
+pnpm -r typecheck
+echo "pre-commit: lint…"
+pnpm lint
+echo "pre-commit: ok"

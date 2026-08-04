@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/solver",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Decentralized Solver Network — the internet of execution. Independent solvers compete to satisfy an execution request; the platform coordinates, INDEPENDENTLY VERIFIES every proposal (never trusts a solver's claims), reputation-weights, and selects the best valid one for settlement. Solvers propose; they never hold keys, never sign, never bypass policy or security.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

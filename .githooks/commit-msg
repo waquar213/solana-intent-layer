@@ -1,0 +1,4 @@
+#!/bin/sh
+# Enforces Conventional Commits (handbook 01 §4). Wired via core.hooksPath by the
+# repo's `prepare` script on `pnpm install`.
+node "$(git rev-parse --show-toplevel)/scripts/validate-commit-msg.mjs" "$1" || exit 1

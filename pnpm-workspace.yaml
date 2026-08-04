@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+  - 'services/*'
+  - 'apps/*'
+  # apps/mobile is an Expo app with its own npm-managed node_modules — RN/Metro don't play
+  # well with pnpm's symlinked store, and hoisting for it must not perturb the other 27
+  # workspace packages. It builds/ships independently (Expo/EAS), so exclude it here.
+  - '!apps/mobile'

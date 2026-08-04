@@ -1,0 +1,63 @@
+# CI pipeline — the machine-checkable gates that work TODAY.
+# Later stages (security scanners, integration forks, image signing, canary)
+# are added as each capability lands (docs/handbook/03-environments-cicd.md §6,
+# docs/handbook/05-roadmap-and-team.md). We do not claim a gate we don't run.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commit-lint:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate Conventional Commits
+        run: node scripts/validate-commit-msg.mjs --range origin/${{ github.base_ref }}..HEAD
+
+  build-test:
+    name: Typecheck & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format check
+        run: pnpm exec prettier --check "**/*.{ts,tsx,md,json,yml}" || echo "::warning::prettier not yet a hard gate"
+      - name: Typecheck (strict)
+        run: pnpm -r typecheck
+      # A full topological build — catches build-only breakage (e.g. a package's
+      # emitted .d.ts drifting from its source) that `typecheck` misses because it
+      # reads source directly. This is exactly what the release image build runs.
+      - name: Build (all packages + services)
+        run: pnpm -r build
+      - name: Unit & property tests
+        run: pnpm -r test
+
+  secrets-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

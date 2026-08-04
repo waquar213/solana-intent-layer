@@ -1,0 +1,31 @@
+{
+  "name": "@intent-wallet/copilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Financial Copilot — the decision layer. An orchestration shell over the engines where the LLM only picks tools and drafts prose; recommendations, plan gating, risk/policy surfacing, confidence and fact-verification are deterministic. It proposes; it never signs and never executes.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/intelligence": "workspace:*",
+    "@intent-wallet/policy": "workspace:*",
+    "@intent-wallet/risk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

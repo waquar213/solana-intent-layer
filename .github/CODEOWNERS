@@ -1,0 +1,29 @@
+# Code ownership → required reviewers (docs/handbook/01-standards.md §6).
+# Money-path packages require the security team on every PR.
+# Teams are placeholders until the GitHub org exists; the intent is binding now.
+
+# Default: any maintainer
+*                           @intent-wallet/maintainers
+
+# Crown jewels — security team REQUIRED (2 approvals, per handbook 04 §3)
+/packages/core/             @intent-wallet/security @intent-wallet/wallet-core
+/packages/execution/        @intent-wallet/security @intent-wallet/blockchain
+/packages/risk/             @intent-wallet/security
+/packages/auth/             @intent-wallet/security @intent-wallet/backend
+
+# Domain squads
+/packages/chains/           @intent-wallet/blockchain
+/packages/adapters/         @intent-wallet/blockchain
+/packages/intents/          @intent-wallet/ai
+/packages/portfolio/        @intent-wallet/backend
+/packages/ui/               @intent-wallet/design @intent-wallet/mobile
+/apps/mobile/               @intent-wallet/mobile
+/apps/web/                  @intent-wallet/web
+/services/                  @intent-wallet/backend
+/infra/                     @intent-wallet/devops
+
+# Governance docs — CTO + relevant leads
+/docs/architecture/         @intent-wallet/architects
+/docs/handbook/             @intent-wallet/architects
+/docs/adr/                  @intent-wallet/architects
+/requirements.md            @intent-wallet/architects

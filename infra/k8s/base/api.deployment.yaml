@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: intent-wallet
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: intent-wallet
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+    spec:
+      # Least privilege: non-root, read-only root FS, no privilege escalation.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: api
+          image: intent-wallet/api:latest # replaced by the CI-built, cosign-signed SHA tag
+          ports:
+            - containerPort: 8080
+          env:
+            - name: IW_ENV
+              value: staging
+            - name: IW_HTTP_PORT
+              value: '8080'
+          # Secrets (IW_DB_URL, IW_REDIS_URL, IW_LLM_API_KEY) come from the
+          # External Secrets Operator (ADR-0023), never from plain env here.
+          envFrom:
+            - secretRef:
+                name: api-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ['ALL']
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: '1'
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

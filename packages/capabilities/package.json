@@ -1,0 +1,26 @@
+{
+  "name": "@intent-wallet/capabilities",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capability Registry — the deterministic 'what can this chain / provider-route actually do?' core. It ANSWERS capability questions (which chain supports staking / bridging / smart accounts, under what fee & finality mechanics, and which provider route-classes even exist) from VERSIONED DATA keyed on CAIP-2 ids. The Intent Engine + Route Optimizer CONSULT it so they decide on dynamic capabilities instead of hardcoded assumptions. It never quotes, never scores, never executes, never touches the network — live provider health stays in @intent-wallet/providers. Fail-closed: an unknown chain or capability is NOT supported. A new chain/provider is a new profile (data), not new code. Standalone, offline-testable.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@intent-wallet/settlement",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Universal Settlement Engine — the settlement orchestration layer (the Stripe of Web3). Drives an approved ExecutionPlan through a deterministic, resumable, idempotent pipeline (pre-flight → quote-lock → gas → execute → confirm → cross-chain settle → reconcile → notify) to its financial outcome, or safely reports why not. The mandatory front door to execution: it never owns funds and never holds keys.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/intents": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

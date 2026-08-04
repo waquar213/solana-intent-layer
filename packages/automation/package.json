@@ -1,0 +1,30 @@
+{
+  "name": "@intent-wallet/automation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Automation & Workflow Engine — the autonomous operating layer. Turns natural-language rules into workflows (trigger → conditions → action) that run through the SAME Policy + Risk gate as a manual action. Pure, deterministic, non-custodial; it orchestrates, it never holds keys and never bypasses the gate.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intent-wallet/policy": "workspace:*"
+  },
+  "devDependencies": {
+    "@intent-wallet/risk": "workspace:*",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

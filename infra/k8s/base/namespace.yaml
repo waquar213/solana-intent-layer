@@ -1,0 +1,10 @@
+# Development baseline manifests (ADR-0021). These are the minimal, honest
+# starting point — production overlays (HPA, PDB, network policies, IRSA,
+# multi-region) are added in Phase 10 via kustomize overlays + ArgoCD.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intent-wallet
+  labels:
+    app.kubernetes.io/part-of: intent-wallet
+    tier: edge

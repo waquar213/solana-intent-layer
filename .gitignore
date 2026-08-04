@@ -1,0 +1,55 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.turbo/
+
+# local SQLite dev store
+*.db
+*.db-journal
+
+# secrets & private key material (defense in depth — never commit these)
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mnemonic
+*.seed
+secrets/
+.secrets/
+# fixed TESTNET-ONLY dev wallet seed (reproducible dev/test wallet; never real funds)
+dev-wallet.json
+dev-wallet.local.json
+
+# native / tooling caches
+.expo/
+*.local
+
+
+# Build artifacts must never live in src/ (they shadow .ts for Vite .js-extension imports)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+
+# ── Rust / Anchor / Foundry build output (never commit) ──────────────────────
+target/
+**/target/
+.anchor/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# ── Solana keypairs = raw private keys (64-byte JSON arrays) — NEVER commit ───
+*keypair*.json
+deployer.json
+**/id.json
+solana-amm/deployer.json
+.vercel
+.env*
