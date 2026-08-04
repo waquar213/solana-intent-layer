@@ -102,6 +102,8 @@ export {
 export {
   guardBroadcast,
   assertBroadcastAllowed,
+  checkSameRealism,
+  assertSameRealism,
   checkEvmRecipient,
   detectPoisoningLookalike,
   assessRecipientOnChain,

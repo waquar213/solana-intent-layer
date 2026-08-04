@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { track } from '@vercel/analytics';
+import { CrossChainSwapView } from './crosschain-ui';
 import {
   apiHealthy,
   authorizeIntent,
@@ -152,8 +153,8 @@ import type {
 
 // Natural-language prompts the demo wallet (2 ETH + 5,000 USDC) actually handles.
 const EXAMPLES: Array<{ label: string; prompt: string; icon: string }> = [
+  { icon: '💸', label: 'Send 0.01 SOL', prompt: 'Send 0.01 SOL to So11111111111111111111111111111111111111112' },
   { icon: '🔄', label: 'Swap 0.001 ETH for USDC', prompt: 'Swap 0.001 ETH for USDC' },
-  { icon: '💸', label: 'Send 0.00001 ETH', prompt: 'Send 0.00001 ETH to 0x1111111111111111111111111111111111111111' },
   { icon: '🌉', label: 'Bridge 0.01 ETH to GIWA', prompt: 'Bridge 0.01 ETH to GIWA' },
   { icon: '🔒', label: 'Stake 0.001 ETH', prompt: 'Stake 0.001 ETH' },
   { icon: '🔄', label: 'Swap 1 USDC for ETH', prompt: 'Swap 1 USDC for ETH' },
@@ -300,11 +301,11 @@ function requirementLabel(r: ConfirmationRequirement): string {
 // `source` = which WalletIdentity field the row READS its address+path from
 // ('evm' | 'btc' | 'sol'). `key` = the row's stable React/display id, decoupled
 // from `source` so a row can DISPLAY as one chain while READING another's address.
-// GIWA is an OP-Stack L2, so its address IS the user's EVM/L1 keypair: the home
-// row sets source:'evm' and reads the REAL id.evm.address — never a fabricated one.
-// The standalone "Ethereum & EVM" row is intentionally FOLDED INTO the GIWA home
-// row (via `sub`) so the shared address is printed exactly once, not duplicated
-// as two identical monospace strings that would read as a copy-paste bug.
+// Solana is the wallet's HOME chain: the home row sets source:'sol' and reads the
+// REAL id.sol.address — never a fabricated one. GIWA is an OP-Stack L2 whose address
+// IS the user's EVM/L1 keypair, so its row reads id.evm.address; the standalone
+// "Ethereum & EVM" row is FOLDED INTO the GIWA row (via `sub`) so the shared address
+// is printed exactly once, not duplicated as two identical monospace strings.
 type IdSource = 'evm' | 'btc' | 'sol';
 type IdChain = {
   key: string; // stable React key + display identity (may differ from source)
@@ -312,21 +313,27 @@ type IdChain = {
   label: string;
   net: string; // one-line network descriptor rendered under the name
   icon: string; // text glyph / monogram (no asset files)
-  home?: boolean; // marks the primary GIWA home row -> hero styling + Home badge
+  home?: boolean; // marks the primary Solana home row -> hero styling + Home badge
   sub?: string; // honest shared-address footnote (home row only)
 };
 const ID_CHAINS: IdChain[] = [
+  {
+    key: 'sol',
+    source: 'sol', // Solana is the wallet's HOME chain -> reads the real id.sol.address
+    label: 'Solana',
+    net: 'mainnet', // the row renderer overrides this to 'devnet' in testnet mode
+    icon: '◎',
+    home: true,
+  },
   {
     key: 'giwa',
     source: 'evm', // OP-Stack L2 shares the EVM keypair -> reads id.evm.address
     label: 'GIWA',
     net: 'Sepolia · OP-Stack L2',
     icon: 'G',
-    home: true,
     sub: 'Same address as your Ethereum · EVM L1 key',
   },
   { key: 'btc', source: 'btc', label: 'Bitcoin', net: 'native SegWit', icon: '₿' },
-  { key: 'sol', source: 'sol', label: 'Solana', net: 'mainnet', icon: '◎' },
 ];
 const shortAddr = (a: string): string => (a.length > 18 ? `${a.slice(0, 9)}…${a.slice(-6)}` : a);
 
@@ -1295,13 +1302,17 @@ function ActIcon({
 // app's IA), with profile/identity in a top-right Account menu. AuthGate is the
 // pre-login screen; WalletShell is everything after unlock.
 // ════════════════════════════════════════════════════════════════════════════
-type Section = 'home' | 'ai' | 'bridge' | 'portfolio' | 'activity' | 'settings';
+type Section = 'home' | 'ai' | 'bridge' | 'swap' | 'portfolio' | 'activity' | 'settings';
 
 const NAV: Array<{ id: Section; label: string; d: string[] }> = [
   { id: 'home', label: 'Home', d: ['M3 10.5 12 3l9 7.5', 'M5 9.3V21h14V9.3'] },
   { id: 'ai', label: 'AI Chat', d: ['M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z'] },
-  // Bridge tab hidden from the UI (product scope = AI intents + swaps; canonical Sepolia→GIWA
-  // bridge is proven on-chain but not surfaced here). BridgeView/BridgeFlow code stays for later.
+  // Bridge: canonical Sepolia→GIWA (OP-Stack, always on) + operator-assisted same-realism routes
+  // (incl. Solana ⇄ EVM), gated by VITE_BRIDGE_OPERATOR_ENABLED + the same-realism guard. Surfaced
+  // now that the routes are honestly enabled (was hidden while only the one canonical route worked).
+  { id: 'bridge', label: 'Bridge', d: ['M3 14h18', 'M6 14V8', 'M18 14V8', 'M3 14c0-4 4-6 9-6s9 2 9 6', 'M9 14v3', 'M15 14v3'] },
+  // Cross-chain swap (mainnet aggregator): any token on chain A -> any token on chain B, best route.
+  { id: 'swap', label: 'Swap', d: ['M7 10 3 6l4-4', 'M3 6h13a4 4 0 0 1 4 4', 'M17 14l4 4-4 4', 'M21 18H8a4 4 0 0 1-4-4'] },
   { id: 'portfolio', label: 'Portfolio', d: ['M12 2 2 7l10 5 10-5-10-5Z', 'm2 17 10 5 10-5', 'm2 12 10 5 10-5'] },
   { id: 'activity', label: 'Activity', d: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { id: 'settings', label: 'Settings', d: ['M4 21v-7', 'M4 10V3', 'M12 21v-9', 'M12 8V3', 'M20 21v-5', 'M20 12V3', 'M2 14h4', 'M10 8h4', 'M18 16h4'] },
@@ -1746,7 +1757,7 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
   const [reviewing, setReviewing] = useState(false);
   // GIWA is the DEFAULT settlement chain — every send opens on GIWA and settles through its
   // on-chain IntentExecutor (the user can still switch chains via the tabs). rpcUrl must match.
-  const [sendChain, setSendChain] = useState<SendChain>('giwa-sepolia');
+  const [sendChain, setSendChain] = useState<SendChain>('solana-devnet');
   const [rpcUrl, setRpcUrl] = useState(DEFAULT_GIWA_RPC);
   const [sendTo, setSendTo] = useState('');
   const [sendAmt, setSendAmt] = useState('0.001');
@@ -2080,11 +2091,11 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
   const openSend = (): void => {
     const me = currentIdentity();
     // Open on a chain the ACTIVE account can actually sign for, resetting any leftover chain from a
-    // prior send. An imported single-curve account can only sign its own curve — a Solana-only key
-    // on the GIWA (EVM) default, or an EVM-only key on a leftover Solana tab, would prefill a BLANK
-    // own-address (core returns '' for the non-native curve) and fetch balance against ''. HD + EVM
-    // imports open on the GIWA home default (the stated invariant).
-    const chain: SendChain = isActiveImported() && activeImportedKind() === 'sol' ? 'solana-devnet' : 'giwa-sepolia';
+    // prior send. Solana is the HOME chain, so a full HD wallet (and a Solana import) opens on Solana
+    // devnet. An imported single-curve account can only sign its own curve — an EVM-only key can't
+    // sign SOL, so it opens on the GIWA (EVM) home instead (core returns '' for the non-native curve,
+    // which would otherwise prefill a BLANK own-address and fetch balance against '').
+    const chain: SendChain = isActiveImported() && activeImportedKind() === 'evm' ? 'giwa-sepolia' : 'solana-devnet';
     const rpc = defaultRpc(chain);
     const asset = nativeAssetOf(chain).symbol;
     setSendChain(chain);
@@ -2407,7 +2418,7 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
                       <ActIcon d={['M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z']} />
                     </span>
                     <p className="ai-empty-h">Ask your wallet anything</p>
-                    <p className="ai-empty-sub">“Swap 0.001 ETH for USDC”, “Send 0.001 ETH to alice”, “Bridge 0.01 ETH to GIWA”.</p>
+                    <p className="ai-empty-sub">“Send 0.01 SOL to …”, “Swap 0.001 ETH for USDC”, “Bridge 0.01 ETH to GIWA”.</p>
                   </div>
                 )}
               </div>
@@ -2443,6 +2454,8 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
           )}
 
           {section === 'bridge' && <BridgeView me={id} onActivity={addActivity} onUpdate={updateActivity} />}
+
+          {section === 'swap' && id && <CrossChainSwapView me={id} />}
 
           {section === 'portfolio' && (
             <section className="hv">
@@ -3780,8 +3793,8 @@ function BridgeView({
   return (
     <section className="hv">
       <div className="sect-head">
-        <h2 className="sect-title">Bridge to GIWA</h2>
-        <span className="brg-sub">The on-ramp to GIWA — Ethereum Sepolia → GIWA via the canonical OP Stack bridge · non-custodial · ~60s</span>
+        <h2 className="sect-title">Bridge</h2>
+        <span className="brg-sub">Move value across chains · Sepolia → GIWA is canonical OP-Stack (non-custodial, ~60s) · Solana ⇄ EVM and other same-realism routes are operator-assisted</span>
       </div>
       <div className="card brg-card">
         <div className="brg-leg">
@@ -3850,9 +3863,12 @@ function BridgeView({
         ) : !unlocked ? (
           <p className="brg-note muted">Unlock your wallet to bridge.</p>
         ) : (
-          <button className="btn primary brg-go" disabled={!canRun} onClick={() => void run()} type="button">
-            {phase === 'depositing' ? 'Signing deposit…' : phase === 'waiting' ? 'Relayer releasing…' : `Bridge ${from.asset} → ${to.label}`}
-          </button>
+          <>
+            {deliverable.note && <p className="brg-note muted">ℹ️ {deliverable.note}</p>}
+            <button className="btn primary brg-go" disabled={!canRun} onClick={() => void run()} type="button">
+              {phase === 'depositing' ? 'Signing deposit…' : phase === 'waiting' ? 'Relayer releasing…' : `Bridge ${from.asset} → ${to.label}`}
+            </button>
+          </>
         )}
 
         {err && <p className="brg-err err-line">{err}</p>}

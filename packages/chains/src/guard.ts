@@ -440,3 +440,50 @@ export function assertBroadcastAllowed(input: BroadcastGuardInput): void {
     throw new ChainError('GUARD_BLOCKED', decision.blocked.join('; '));
   }
 }
+
+/**
+ * Cross-chain realism guard — the bridge half of the fail-closed doctrine.
+ *
+ * A bridge must never cross REALISM: both legs testnet, or both mainnet. A route with
+ * a testnet asset on one side (free faucet value) and a mainnet asset on the other
+ * (real value) is not a bridge — it either MINTS real value from valueless test funds
+ * (deposit free devnet SOL, withdraw real ETH and the operator liquidity is drained
+ * instantly) or STRANDS real value against test funds. Neither can be positively
+ * verified as a fair move, so both are refused. `getChain` throws on an unknown chain
+ * and is caught here as blocked — fail closed, never waved through.
+ */
+export function checkSameRealism(from: ChainId, to: ChainId): { ok: true } | { ok: false; reason: string } {
+  let f, t;
+  try {
+    f = getChain(from);
+  } catch {
+    return { ok: false, reason: `unknown source chain "${from}" — refusing to bridge` };
+  }
+  try {
+    t = getChain(to);
+  } catch {
+    return { ok: false, reason: `unknown destination chain "${to}" — refusing to bridge` };
+  }
+  if (f.testnet !== t.testnet) {
+    const realism = (isTestnet: boolean): string => (isTestnet ? 'testnet' : 'mainnet');
+    return {
+      ok: false,
+      reason:
+        `cross-realism bridge refused: ${f.name} is ${realism(f.testnet)} but ${t.name} is ${realism(t.testnet)} — ` +
+        `a testnet↔mainnet route would move real value against valueless test funds. Bridge testnet↔testnet or mainnet↔mainnet.`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Imperative form for the deposit call site: THROW `ChainError('GUARD_BLOCKED')` when the
+ * two legs are not the same realism. Defense-in-depth beneath the UI's deliverability
+ * check — a mixed-realism deposit can never be signed even if a caller forgets to ask.
+ */
+export function assertSameRealism(from: ChainId, to: ChainId): void {
+  const decision = checkSameRealism(from, to);
+  if (!decision.ok) {
+    throw new ChainError('GUARD_BLOCKED', decision.reason);
+  }
+}

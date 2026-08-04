@@ -14,8 +14,15 @@
     "@intent-wallet/chains": "workspace:*",
     "@intent-wallet/core": "workspace:*",
     "@intent-wallet/intents": "workspace:*",
+    "@intent-wallet/providers": "workspace:^",
     "@intent-wallet/sdk": "workspace:*",
     "@vercel/analytics": "^2.0.1",
+    "@wormhole-foundation/sdk": "^6.1.5",
+    "@wormhole-foundation/sdk-base": "^6.1.5",
+    "@wormhole-foundation/sdk-connect": "^6.1.5",
+    "@wormhole-foundation/sdk-definitions": "^6.1.5",
+    "buffer": "^6.0.3",
+    "eventemitter3": "^5.0.4",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -26,6 +33,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.5.0",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vite-plugin-node-polyfills": "^0.28.0"
   }
 }

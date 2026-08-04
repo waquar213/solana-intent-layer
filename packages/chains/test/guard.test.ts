@@ -6,8 +6,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertBroadcastAllowed,
+  assertSameRealism,
   assessRecipientOnChain,
   checkEvmRecipient,
+  checkSameRealism,
   classifyHistoryForPoisoning,
   detectPoisoningLookalike,
   guardBroadcast,
@@ -383,5 +385,72 @@ describe('assertBroadcastAllowed', () => {
 
   it('is a no-op when allowed', () => {
     expect(() => assertBroadcastAllowed({ chain: 'sepolia', toAddress: WETH })).not.toThrow();
+  });
+});
+
+describe('checkSameRealism — the cross-chain realism guard', () => {
+  it('allows testnet ↔ testnet (either direction, any pair)', () => {
+    expect(checkSameRealism('solana-devnet', 'sepolia').ok).toBe(true);
+    expect(checkSameRealism('sepolia', 'giwa-sepolia').ok).toBe(true);
+    expect(checkSameRealism('solana-devnet', 'bitcoin-testnet').ok).toBe(true);
+    expect(checkSameRealism('giwa-sepolia', 'solana-devnet').ok).toBe(true);
+  });
+
+  it('allows mainnet ↔ mainnet', () => {
+    expect(checkSameRealism('solana', 'ethereum').ok).toBe(true);
+    expect(checkSameRealism('ethereum', 'bitcoin').ok).toBe(true);
+    expect(checkSameRealism('bitcoin', 'solana').ok).toBe(true);
+  });
+
+  it('REFUSES a devnet↔mainnet cross-realism route in either direction', () => {
+    const a = checkSameRealism('solana-devnet', 'ethereum');
+    expect(a.ok).toBe(false);
+    if (!a.ok) expect(a.reason).toMatch(/cross-realism|testnet.*mainnet/i);
+
+    const b = checkSameRealism('ethereum', 'solana-devnet');
+    expect(b.ok).toBe(false);
+
+    // The literal ask that started this: bridge devnet SOL out to real ETH — blocked.
+    expect(checkSameRealism('solana-devnet', 'ethereum').ok).toBe(false);
+    // …and testnet ETH to Solana mainnet.
+    expect(checkSameRealism('sepolia', 'solana').ok).toBe(false);
+  });
+
+  it('names both chains and their realism in the refusal reason', () => {
+    const r = checkSameRealism('solana-devnet', 'ethereum');
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toMatch(/testnet/i);
+      expect(r.reason).toMatch(/mainnet/i);
+    }
+  });
+
+  it('fails CLOSED on an unknown chain rather than waving it through', () => {
+    // @ts-expect-error — off-registry chain id to prove it blocks, not opens.
+    const a = checkSameRealism('dogecoin', 'sepolia');
+    expect(a.ok).toBe(false);
+    if (!a.ok) expect(a.reason).toMatch(/unknown source chain/i);
+
+    // @ts-expect-error — off-registry destination.
+    const b = checkSameRealism('sepolia', 'litenet');
+    expect(b.ok).toBe(false);
+    if (!b.ok) expect(b.reason).toMatch(/unknown destination chain/i);
+  });
+});
+
+describe('assertSameRealism', () => {
+  it('throws a GUARD_BLOCKED ChainError on a cross-realism route', () => {
+    try {
+      assertSameRealism('solana-devnet', 'ethereum');
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ChainError);
+      expect((err as ChainError).code).toBe('GUARD_BLOCKED');
+    }
+  });
+
+  it('is a no-op for a same-realism route', () => {
+    expect(() => assertSameRealism('solana-devnet', 'sepolia')).not.toThrow();
+    expect(() => assertSameRealism('solana', 'ethereum')).not.toThrow();
   });
 });

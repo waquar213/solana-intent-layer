@@ -15,6 +15,7 @@ import {
   ProviderPool,
   SolanaAdapter,
   assertBroadcastAllowed,
+  checkSameRealism,
   checkEvmRecipient,
   assembleSolTransaction,
   buildBtcTransfer,
@@ -38,6 +39,7 @@ import {
   encodeUint256,
   intentHashOf,
   getChain,
+  chainByEvmChainId,
   p2wpkhAddressFor,
   SEPOLIA_UNISWAP,
   V3_FEE_TIERS,
@@ -456,6 +458,93 @@ export async function swapGusdcForEthOnGiwa(opts: {
 
 /** The result of a two-leg compound: the swap tx, the follow-on send tx, and the exact
  *  base-unit amount that was forwarded (what actually landed from the swap). */
+// ── Cross-chain swap execution (aggregator route) ─────────────────────────────
+// Sign + broadcast the WINNING quote's transaction from the cross-chain-swap aggregator (LI.FI, …),
+// ON-DEVICE. The aggregator BUILDS the route/tx; deterministic guardrails VERIFY it; the user's device
+// SIGNATURE disposes — the doctrine, applied to the highest-stakes flow in the wallet (mainnet, real
+// funds, cross-chain). Non-custodial: the key never leaves the browser. Exact-amount approval (never
+// unlimited). Fail-closed on an unknown chain.
+//
+// ⚠️ SECURITY REVIEW REQUIRED before this is wired to real funds: this moves REAL mainnet value. It is
+// gated behind the mainnet-ack + spend-cap guard (assertBroadcastAllowed) and must ALSO be driven only
+// from an explicit, informed user confirmation in the UI (never auto-run). Not yet surfaced in the app.
+export interface CrossChainSwapExecInput {
+  /** LI.FI-style numeric source chain id (mapped to our ChainId via the registry). */
+  evmChainId: number;
+  /** The route transaction the aggregator returned: target (its router), calldata, native value, gas. */
+  to: string;
+  data: string;
+  value: string; // hex or decimal wei
+  gasLimit?: string; // hex or decimal
+  /** ERC-20 source: the token to approve + the router to approve it to (absent for a native-asset source). */
+  fromTokenAddress?: string;
+  approvalSpender?: string;
+  /** The exact input amount to approve (base units) — approval is EXACT, never unlimited. */
+  approvalAmountBase: string;
+  /** The route's USD value, for the mainnet spend-cap guard. */
+  amountUsd?: number;
+  rpcUrl?: string;
+  guard?: GuardAck;
+}
+
+export async function executeCrossChainSwapEvm(opts: CrossChainSwapExecInput): Promise<EvmSendResult> {
+  const me = currentIdentity();
+  if (!me) throw new Error('Unlock your wallet first.');
+  const info = chainByEvmChainId(opts.evmChainId);
+  if (!info || info.evmChainId === undefined) throw new Error(`unsupported/unknown EVM chain id ${opts.evmChainId}`);
+  const chain = info.id;
+  const rpcUrl = opts.rpcUrl ?? info.defaultRpcUrls[0];
+  if (!rpcUrl) throw new Error(`no RPC configured for ${chain}`);
+
+  // Guardrails BEFORE any signing: mainnet acknowledgment + spend cap (via guard.amountUsd) + recipient
+  // checksum + address-poisoning check. Fail-closed — nothing is signed if the guard blocks.
+  assertBroadcastAllowed(guardInput(chain, opts.to, opts.guard));
+
+  const pool = new ProviderPool([new HttpJsonRpcTransport(rpcUrl)]);
+  const adapter = new EvmAdapter(chain, pool);
+  const [nonce0, fees] = await Promise.all([adapter.getNonce(me.evm.address), adapter.estimateFees('normal')]);
+  if (fees.kind !== 'evm') throw new Error('unexpected non-EVM fee estimate');
+  let gasPrice = { maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas };
+  let nonce = nonce0;
+
+  // 1) ERC-20 source → approve EXACTLY the input amount to the aggregator's router if the allowance is
+  //    short, then WAIT for that receipt (revert throws → the swap never fires). Never an unlimited approval.
+  if (opts.fromTokenAddress && opts.approvalSpender) {
+    const amount = BigInt(opts.approvalAmountBase);
+    const allowance = await readAllowance(pool, opts.fromTokenAddress, me.evm.address, opts.approvalSpender);
+    if (allowance < amount) {
+      const approveTx: Eip1559Transaction = {
+        chainId: info.evmChainId,
+        nonce,
+        ...gasPrice,
+        gasLimit: 80_000n,
+        to: opts.fromTokenAddress,
+        value: 0n,
+        data: encodeErc20Approve(opts.approvalSpender, amount),
+      };
+      const approve = await adapter.broadcastRawTransaction(signEvmTransaction(approveTx).raw);
+      await waitForReceipt(pool, approve.txid);
+      nonce = nonce + 1n;
+      const fresh = await adapter.estimateFees('normal'); // approval can take a while; re-price the swap
+      if (fresh.kind === 'evm') gasPrice = { maxFeePerGas: fresh.maxFeePerGas, maxPriorityFeePerGas: fresh.maxPriorityFeePerGas };
+    }
+  }
+
+  // 2) The aggregator's swap transaction — we only SIGN (on-device) + broadcast what it built.
+  const value = BigInt(opts.value || '0');
+  let gasLimit = opts.gasLimit ? (BigInt(opts.gasLimit) * 12n) / 10n : 0n;
+  if (gasLimit <= 0n) {
+    try {
+      gasLimit = ((await adapter.estimateGas({ from: me.evm.address, to: opts.to, data: opts.data, value })) * 12n) / 10n;
+    } catch {
+      gasLimit = 500_000n; // conservative fallback for a complex aggregator route
+    }
+  }
+  const swapTx: Eip1559Transaction = { chainId: info.evmChainId, nonce, ...gasPrice, gasLimit, to: opts.to, value, data: opts.data };
+  const { txid } = await adapter.broadcastRawTransaction(signEvmTransaction(swapTx).raw); // in-browser, user's key
+  return { txid, explorerUrl: `${info.explorerUrl}/tx/${txid}` };
+}
+
 /**
  * Thrown when a compound convert-and-send's SWAP leg SETTLED on-chain but the forward (send) leg then
  * failed. Carries the completed swap so the caller persists it and NEVER re-runs the (irreversible)
@@ -1188,23 +1277,33 @@ export const BRIDGE_CHAINS: Record<string, BridgeChain> = {
   bitcoin: { id: 'bitcoin', kind: 'bitcoin', label: 'Bitcoin testnet', asset: 'BTC', decimals: 8, operator: BRIDGE_BTC_OPERATOR, explorer: 'https://mempool.space/testnet', rpc: DEFAULT_BTC_TESTNET_REST },
 };
 
+/** Operator bridge opt-in. The committed default is OFF — fail-closed, so a shared build can never
+ *  invite a deposit down a path whose relayer isn't running (exactly how 0.05 SOL + 0.031 ETH were
+ *  lost). The operator flips this on in their gitignored .env.local ONLY while they run
+ *  services/relayer with funded operator liquidity. */
+const BRIDGE_OPERATOR_ENABLED = String(import.meta.env.VITE_BRIDGE_OPERATOR_ENABLED ?? '').trim() === 'true';
+
+/** The registry ChainId behind a bridge chain, so realism (testnet vs mainnet) is read from the ONE
+ *  source of truth (registry `testnet`) rather than re-hardcoded here. */
+function bridgeRegistryId(bc: BridgeChain): ChainId {
+  if (bc.evmChain) return bc.evmChain;
+  return bc.kind === 'solana' ? 'solana-devnet' : 'bitcoin-testnet';
+}
+
 /**
- * Is this bridge route actually DELIVERABLE end-to-end right now?
+ * Is this bridge route actually DELIVERABLE end-to-end right now? Two mechanisms:
  *
- * ONE route is supported: **Ethereum Sepolia → GIWA, ETH, to your own address** — the canonical OP
- * Stack deposit, delivered by the chain's own L2CrossDomainMessenger whether or not anything of ours
- * runs. Proven on-chain: L1 0xb1c8d047… → L2 0x9565a720…, 62s. No operator, no custody, no trust.
+ *  1. CANONICAL — Ethereum Sepolia → GIWA, ETH, to your own address: the OP-Stack L1StandardBridge
+ *     deposit, delivered by the chain's own messenger whether or not anything of ours runs. No
+ *     operator, no custody, no trust. Always on. (Proven on-chain: L1 0xb1c8d047… → L2 0x9565a720….)
+ *  2. OPERATOR — every other same-realism route (incl. Solana): the bonded-relayer model. The deposit
+ *     is a REAL on-chain tx to the operator; services/relayer releases it on the destination (or
+ *     refunds it). OFF unless the operator opts in (VITE_BRIDGE_OPERATOR_ENABLED), because a route
+ *     whose relayer isn't running strands the deposit — the doctrine's fail-closed law, and the
+ *     literal history here (0.05 SOL, 0.031 ETH lost down un-serviced paths).
  *
- * Everything else is DELIBERATELY out of scope for the bridge:
- *   • cross-chain to/from Solana needs an aggregator, and no aggregator lists GIWA yet (it's a new
- *     L2). The operator-relayer prototype for it lives in services/relayer as a roadmap artifact,
- *     but is NOT wired into the product — a custodial relayer is not something to ship.
- *   • GIWA → Sepolia withdrawal is the canonical 7-day challenge window (proofMaturityDelaySeconds
- *     = 604800) — real, but not a demo flow.
- * Moving value WITHIN a chain is a SWAP, not a bridge — use the swap flow for that.
- *
- * History is why this REFUSES rather than warns — deposits down un-serviced paths were lost
- * silently and irreversibly (0.05 SOL, 0.031 ETH to operator addresses whose key was never held).
+ * NEVER crosses realism: a testnet↔mainnet leg is refused by the same-realism guard (packages/chains),
+ * so free test funds can never be bridged against real value. Same-chain is a SWAP, not a bridge.
  */
 export function bridgeRouteDeliverable(route: {
   fromId: string;
@@ -1212,16 +1311,19 @@ export function bridgeRouteDeliverable(route: {
   asset: string;
   recipient?: string | undefined;
   sender?: string | undefined;
-}): { ok: true } | { ok: false; reason: string } {
+}): { ok: true; note?: string } | { ok: false; reason: string } {
   const asset = route.asset.toUpperCase();
-  // The only supported bridge: Sepolia → GIWA, ETH, credited to YOUR OWN address on GIWA (canonical,
-  // no operator). An empty recipient means "to self"; an explicit recipient is fine ONLY when it is
-  // your own EVM address — the canonical bridge cannot deliver anywhere else. (The modal prefills
-  // the recipient with your own address, so this must resolve deliverable, not blocked.)
+  const from = BRIDGE_CHAINS[route.fromId];
+  const to = BRIDGE_CHAINS[route.toId];
+
+  // 1. CANONICAL: Sepolia → GIWA, ETH, credited to YOUR OWN address on GIWA. An empty recipient means
+  // "to self"; an explicit recipient is fine ONLY when it is your own address (the modal prefills it).
   if (route.fromId === 'sepolia' && route.toId === 'giwa' && asset === 'ETH') {
     const r = (route.recipient ?? '').trim().toLowerCase();
     const s = (route.sender ?? '').trim().toLowerCase();
-    if (!r || (s !== '' && r === s)) return { ok: true };
+    if (!r || (s !== '' && r === s)) {
+      return { ok: true, note: 'Canonical OP-Stack bridge (~60s) — non-custodial, credited to your own address on GIWA.' };
+    }
     return {
       ok: false,
       reason:
@@ -1229,13 +1331,32 @@ export function bridgeRouteDeliverable(route: {
     };
   }
 
-  const from = BRIDGE_CHAINS[route.fromId]?.label ?? route.fromId;
-  const to = BRIDGE_CHAINS[route.toId]?.label ?? route.toId;
+  // 2. OPERATOR: everything else. Fail closed unless the operator has explicitly turned it on.
+  if (!BRIDGE_OPERATOR_ENABLED) {
+    return {
+      ok: false,
+      reason:
+        `The operator bridge is off in this build, so ${from?.label ?? route.fromId} → ${to?.label ?? route.toId} isn't available ` +
+        `(only the canonical Ethereum Sepolia → GIWA is). Nothing has been signed. Turn it on by running services/relayer and ` +
+        `setting VITE_BRIDGE_OPERATOR_ENABLED=true.`,
+    };
+  }
+  if (!from || !to) return { ok: false, reason: `Unknown bridge chain: ${route.fromId} → ${route.toId}.` };
+  if (from.id === to.id) return { ok: false, reason: `${from.label} → ${to.label} is the same chain — that's a swap, not a bridge. Use Swap.` };
+  // Never cross realism (testnet↔mainnet). Structural guard from packages/chains, keyed on the
+  // registry `testnet` flag — a devnet↔mainnet route would move real value against valueless test funds.
+  const realism = checkSameRealism(bridgeRegistryId(from), bridgeRegistryId(to));
+  if (!realism.ok) return { ok: false, reason: realism.reason };
+  // The deposit leg is always the SOURCE chain's native asset.
+  if (asset !== from.asset.toUpperCase()) {
+    return { ok: false, reason: `From ${from.label} you can only bridge its native ${from.asset}, not ${asset}.` };
+  }
   return {
-    ok: false,
-    reason:
-      `The bridge supports only Ethereum Sepolia → GIWA (canonical OP Stack, ~60s, non-custodial) — ${from} → ${to} is not it. ` +
-      `Nothing has been signed. To move value within a chain, use Swap; cross-chain to Solana and fast withdrawals are on the roadmap (aggregator on mainnet).`,
+    ok: true,
+    note:
+      `Operator-assisted bridge (bonded relayer). Your deposit is a REAL on-chain tx to the operator; ` +
+      `services/relayer releases ${to.asset} on ${to.label} after ${from.kind === 'solana' ? '32 slots' : '6 blocks'}, ` +
+      `or refunds you if it can't. Delivery needs the operator relayer running — not trustless.`,
   };
 }
 
@@ -1394,6 +1515,17 @@ export async function bridgeDeposit(opts: { fromId: string; toId: string; amount
   const from = BRIDGE_CHAINS[opts.fromId];
   const to = BRIDGE_CHAINS[opts.toId];
   if (!from || !to || from.id === to.id) throw new Error('Unsupported bridge route.');
+  // Defense-in-depth: re-run the SAME deliverability gate the UI uses, so a route that isn't
+  // deliverable (operator bridge off, or a cross-realism testnet↔mainnet leg) can never be signed
+  // even if a caller reaches this function directly. Fail closed — nothing is signed on a refusal.
+  const gate = bridgeRouteDeliverable({
+    fromId: opts.fromId,
+    toId: opts.toId,
+    asset: from.asset,
+    recipient: opts.recipient.trim() || undefined,
+    sender: currentIdentity()?.evm.address,
+  });
+  if (!gate.ok) throw new Error(gate.reason);
   if (!validBridgeRecipient(to, opts.recipient)) throw new Error(`Invalid recipient address for ${to.label}.`);
   const memo = `${BRIDGE_TAG}:${to.id}:${opts.recipient.trim()}`;
   if (from.kind === 'evm') return bridgeDepositEvm(from, opts.amountBase, memo, opts.guard);

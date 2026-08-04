@@ -15,6 +15,10 @@ export type {
   BridgeProvider,
   BridgeRequest,
   BridgeQuote,
+  CrossChainSwapProvider,
+  CrossChainSwapRequest,
+  CrossChainSwapQuote,
+  CrossChainSwapExecution,
   PriceProvider,
   GasProvider,
   SimulationProvider,
@@ -24,4 +28,6 @@ export { HealthTracker, type HealthSnapshot, type HealthOptions, type CircuitSta
 export { ProviderRegistry, type ProviderRegistryOptions } from './registry.js';
 export { ProviderError, type ProviderErrorCode } from './errors.js';
 export { bestSwapQuote, isValidSwapQuote, type QuoteValidationOptions } from './aggregate.js';
+export { makeLifiProvider, usdStringToMicros, type LifiProviderOptions, type FetchLike } from './lifi.js';
+export { bestCrossChainQuote, netValueMicros, type BestCrossChainOptions, type RankedCrossChainQuote } from './crosschain.js';
 export { RouteOptimizer, type Route, type RouteLeg, type RouteOptimizerOptions } from './route.js';
