@@ -663,7 +663,7 @@ export async function sendSwap(opts: {
     readAllowance(pool, from.address, me.evm.address, SEPOLIA_UNISWAP.swapRouter02),
   ]);
   if (fees.kind !== 'evm') throw new Error('unexpected non-EVM fee estimate');
-  const gasPrice = { maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas };
+  let gasPrice = { maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas };
 
   let nonce = nonce0;
   // 1+2) approve ONLY if the current allowance is short, then WAIT for it to confirm.
@@ -680,6 +680,11 @@ export async function sendSwap(opts: {
     const approve = await adapter.broadcastRawTransaction(signEvmTransaction(approveTx).raw);
     await waitForReceipt(pool, approve.txid); // throws on revert / timeout — swap won't fire
     nonce = nonce + 1n;
+    // Re-estimate fees after the ~90s approval wait — the base fee may have risen, and a swap tx signed
+    // at the stale (now-underpriced) maxFeePerGas would sit stuck behind the confirmed approval. Web's
+    // approve->swap sequences all re-estimate here; this was the one mobile path that didn't (parity).
+    const fresh = await adapter.estimateFees('normal');
+    if (fresh.kind === 'evm') gasPrice = { maxFeePerGas: fresh.maxFeePerGas, maxPriorityFeePerGas: fresh.maxPriorityFeePerGas };
   }
 
   const swapData = encodeExactInputSingle({
