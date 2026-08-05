@@ -247,7 +247,14 @@ function PlanFlow({ plan }: { plan: ExecutionPlan }): React.JSX.Element {
     }
     let live = true;
     setPoisonChecking(true);
-    assessRecipientLive({ chain: realChain as ChainId, me: meEvm, target })
+    // The on-chain poison check must query the chain the recipient ACTUALLY receives on — Ethereum on
+    // mainnet, not the 'sepolia' the drain-ledger key reuses. Passing 'sepolia' for a mainnet address read
+    // UNRELATED Sepolia history: a real mainnet dust-poisoner was invisible (the hard block never fired) and
+    // a benign mainnet recipient could false-block. 'ethereum' has no explorer configured here, so
+    // assessRecipientLive returns UNKNOWN (inconclusive) — which HOLDS Auto (safe), never a fabricated
+    // clean bill. Mirrors web, which skips the on-chain check off-Sepolia (App.tsx evmChain gate).
+    const poisonChain: ChainId = isMainnet() ? 'ethereum' : 'sepolia';
+    assessRecipientLive({ chain: poisonChain, me: meEvm, target })
       .then((r) => {
         if (!live) return;
         setPoisonBlocks(r.blocked);
@@ -359,14 +366,17 @@ function PlanFlow({ plan }: { plan: ExecutionPlan }): React.JSX.Element {
       poisonChecking ||
       poisonWarns.length > 0 ||
       (isEvmRecipient && !poisonChecked) ||
-      plan.requiresStepUp
+      plan.requiresStepUp ||
+      highValue // a >$1,000 (or unpriced) MAINNET move is the statutory high-value gate — a human must tap the
+      // high-value ack (below); Auto must never self-satisfy it. Drops to manual, where the checkbox is shown.
     )
       return;
     if (phase === 'planned' && !autoAuthTriedRef.current) {
       autoDrivenRef.current = true;
       autoAuthTriedRef.current = true;
-      setMainnetAck(true); // Auto mode IS the consent; caps bound it
-      setHighValueAck(true);
+      setMainnetAck(true); // Auto IS the consent to operate on mainnet within the user's caps.
+      // NOT setHighValueAck — the $1,000 statutory high-value gate is deliberately NOT auto-satisfiable; a
+      // high-value plan never reaches here (the `highValue` gate above dropped it to manual for a human tap).
       void authorize();
     } else if (phase === 'authorized' && permission?.mayProceedToSign && autoDrivenRef.current && !autoExecTriedRef.current) {
       if (canSwap && !swapQuote) return; // a swap needs its live quote before it can sign — don't consume the try
