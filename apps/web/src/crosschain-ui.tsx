@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { bestCrossChainQuote, makeLifiProvider, makeDebridgeProvider, type CrossChainSwapQuote, type RankedCrossChainQuote } from '@intent-wallet/providers';
 import { executeCrossChainSwapEvm, executeCrossChainSwapSolana } from './broadcast';
+import { MAINNET_SPEND_CAP_USD } from '@intent-wallet/chains';
 import type { EvmSendResult } from './broadcast';
 import { getNetworkMode } from './settings';
 import { spotUsd } from './balances';
@@ -77,6 +78,11 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
+  // A SEPARATE high-value acknowledgement for a swap over the $1,000 mainnet cap (or an unpriced route).
+  // Previously the guard was handed `acknowledgeHighValue: true` unconditionally, which defeated the
+  // deterministic tier-2 spend-cap gate on this — the wallet's highest-value surface. This ack is the real
+  // signal, mirroring the App.tsx chat-send confirm dialog.
+  const [hvAck, setHvAck] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<EvmSendResult | null>(null);
 
@@ -114,6 +120,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     setResult(null);
     setErr(null);
     setAck(false);
+    setHvAck(false);
   }, [netMode]);
 
   const getQuote = async (): Promise<void> => {
@@ -123,6 +130,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     setRanked([]);
     setResult(null);
     setAck(false);
+    setHvAck(false);
     try {
       const dec = decimalsFor(fromToken);
       const req = {
@@ -179,7 +187,9 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     setErr(null);
     try {
       const valueUsd = quote && quote.toValueMicros !== null ? Number(quote.toValueMicros) / 1e6 : undefined;
-      const guard = { acknowledgeMainnet: true, acknowledgeHighValue: true, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}) };
+      // acknowledgeHighValue is the USER's over-cap tick — NOT a hardcoded true. Over the $1,000 cap (or an
+      // unpriced route) the deterministic guard blocks unless this is set, exactly like a chat mainnet send.
+      const guard = { acknowledgeMainnet: true, acknowledgeHighValue: hvAck, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}) };
       let r: EvmSendResult;
       if (ex.ecosystem === 'solana') {
         const data = (ex.raw as RawSolTx).data;
@@ -211,7 +221,12 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   };
 
   const eco = quote?.execution?.ecosystem;
-  const canExecute = (eco === 'evm' || eco === 'solana') && ack && !executing && !result;
+  // Over the mainnet spend cap (or an unpriced route) a distinct high-value ack is required — the same tier-2
+  // gate the deterministic guard enforces. The button stays disabled until it's ticked, and even if it
+  // weren't, executeCrossChainSwap* would throw (guard fail-closed) — belt and suspenders.
+  const valueUsdView = quote && quote.toValueMicros !== null ? Number(quote.toValueMicros) / 1e6 : undefined;
+  const overCap = valueUsdView === undefined || valueUsdView > MAINNET_SPEND_CAP_USD;
+  const canExecute = (eco === 'evm' || eco === 'solana') && ack && (!overCap || hvAck) && !executing && !result;
 
   return (
     <section className="hv">
@@ -305,6 +320,16 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
                 ⚠️ This moves <b>REAL mainnet funds</b> across chains and is <b>irreversible</b>. The route transaction is built by <b>{quote?.providerId ?? 'the aggregator'}</b> and signed on your device (non-custodial); the guard enforces the spend cap but can't inspect the full route. I've reviewed the quote above and trust this route.
               </span>
             </label>
+            {overCap && (
+              <label className="brg-note" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <input type="checkbox" checked={hvAck} onChange={(e) => setHvAck(e.target.checked)} />
+                <span>
+                  {valueUsdView === undefined
+                    ? `This route is unpriced — I confirm swapping anyway, treated as a high-value transaction over the $${MAINNET_SPEND_CAP_USD.toLocaleString('en-US')} cap.`
+                    : `This swap is ≈ $${valueUsdView.toLocaleString('en-US', { maximumFractionDigits: 2 })}, over the $${MAINNET_SPEND_CAP_USD.toLocaleString('en-US')} mainnet spend cap — I understand and want to proceed.`}
+                </span>
+              </label>
+            )}
             <button className="btn primary brg-go" onClick={() => void execute()} disabled={!canExecute} type="button">
               {executing ? 'Signing on device…' : `Swap ${fromToken} on ${fromChain.label} → ${toToken} on ${toChain.label}`}
             </button>
