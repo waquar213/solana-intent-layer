@@ -28,6 +28,10 @@ export default defineConfig({
   server: {
     // Launch preview assigns a free port via PORT when 5173 is taken by another session.
     port: Number(process.env.PORT) || 5173,
+    // Bind to 0.0.0.0 so another device on the SAME WiFi can open http://<LAN-IP>:<port> (dev convenience).
+    // The /v1 proxy below still runs on THIS host, so the API + LI.FI proxy work from the remote device
+    // without exposing :8080 directly. Dev only — a production host ships its own strict CSP + TLS.
+    host: true,
     // Baseline hardening headers (HMR-safe: they don't restrict scripts). `frame-ancestors
     // 'none'` blocks clickjacking of the Send/Confirm buttons. NOTE: a wallet must ALSO ship
     // a full strict CSP (script-src 'self'; connect-src <rpc/explorer hosts>; …) at the
