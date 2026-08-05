@@ -15,7 +15,7 @@ import { evaluateCondition } from './conditions.js';
 import type { AutomationEnv } from './env.js';
 import { checkSafety, runsTodayCount } from './safety.js';
 import type { ContextProvider, Executor, Notifier, PolicyAuthorizer, RunStore, WorkflowStore } from './sources.js';
-import { lastScheduledInstant, triggerMet } from './triggers.js';
+import { isEventTriggerMet, isScheduleDue, lastScheduledInstant } from './triggers.js';
 import type { Action, ActionResult, RunStatus, Workflow, WorkflowRun } from './types.js';
 
 export interface AutomationEngineDeps {
@@ -127,7 +127,24 @@ export class AutomationEngine {
     if (wf.status !== 'active') return finish(run('skipped', [], [`workflow is ${wf.status}`]));
 
     const ctx = await this.deps.context.evalContext(wf.ownerId, now);
-    if (!triggerMet(wf.trigger, wf.lastRunAtIso, ctx)) return finish(run('skipped', [], ['trigger not met']));
+    // Event triggers are LEVEL-matched (true the whole time the condition holds); fire only on the RISING
+    // EDGE — the tick it BECOMES true — not every tick after. Without this a persistent event ("BTC down
+    // 10%") re-fires each tick: the idempotency key (instance=now for events) can't dedupe it and default
+    // safety has no cooldown, so a fund-moving action would repeat dozens of times. `triggerActive` remembers
+    // the last observed state and re-arms once the condition clears. Schedules keep their own edge logic.
+    const isSchedule = wf.trigger.kind === 'schedule';
+    const eventActive = !isSchedule && isEventTriggerMet(wf.trigger, ctx);
+    // Inline `kind === 'schedule'` (not the `isSchedule` alias) so TS narrows wf.trigger to Schedule here.
+    const fires =
+      wf.trigger.kind === 'schedule' ? isScheduleDue(wf.trigger, wf.lastRunAtIso, ctx.nowIso) : eventActive && wf.triggerActive !== true;
+    if (!fires) {
+      // Persist the event's activity (only on a change) so the next tick sees a fresh rising edge, and
+      // re-arms after the condition clears — even on a tick that doesn't fire.
+      if (!isSchedule && !dry && eventActive !== (wf.triggerActive === true)) {
+        await this.deps.workflows.save({ ...wf, triggerActive: eventActive });
+      }
+      return finish(run('skipped', [], ['trigger not met']));
+    }
     if (!evaluateCondition(ctx, wf.condition)) return finish(run('condition_unmet', [], ['conditions not satisfied']));
 
     const runsToday = runsTodayCount(await this.deps.runs.history(wf.id), now);
@@ -150,7 +167,9 @@ export class AutomationEngine {
     const r = run(aggregate(results), results, [], idempotencyKey);
     if (!dry) {
       await this.deps.runs.append(r);
-      await this.deps.workflows.save({ ...wf, lastRunAtIso: now });
+      // Latch triggerActive=true for a fired EVENT so the next tick sees no rising edge (no re-fire while the
+      // condition persists); schedules don't use it. lastRunAtIso still advances for cooldown/next-fire.
+      await this.deps.workflows.save({ ...wf, lastRunAtIso: now, ...(isSchedule ? {} : { triggerActive: eventActive }) });
       await this.deps.notifier.notify(wf.ownerId, `Workflow "${wf.title}" → ${r.status}`);
     }
     return r;

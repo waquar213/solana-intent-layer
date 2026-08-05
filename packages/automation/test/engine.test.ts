@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Workflow } from '../src/index.js';
+import type { ContextProvider, Workflow } from '../src/index.js';
 import { dcaWorkflow, makeEngine, NOW_MONDAY, SANCT, sanctioningRisk } from './fakes.js';
 
 describe('AutomationEngine — the gate cannot be bypassed', () => {
@@ -74,5 +74,47 @@ describe('AutomationEngine — the gate cannot be bypassed', () => {
     const run = await engine.runWorkflow(wf);
     expect(run.status).toBe('skipped');
     expect(executor.calls).toHaveLength(0);
+  });
+
+  it('an EVENT trigger fires ONCE on the rising edge — not every tick it stays true — and re-arms after it clears', async () => {
+    // A level-matched event ("BTC drops 10%") stays true across many ticks. Before the edge-trigger fix each
+    // tick got a fresh idempotency instance (=now) with no default cooldown, so a fund-moving action
+    // re-executed EVERY tick. It must fire once, and re-fire only after the condition clears and re-asserts.
+    let move = -0.12; // BTC down 12% ⇒ "drops 10%" active
+    const context: ContextProvider = {
+      evalContext: (_ownerId, nowIso) =>
+        Promise.resolve({
+          nowIso,
+          prices: {},
+          priceMoves: { BTC: move },
+          portfolio: { health: 70, drawdown: 0.05, risk_score: 20, net_worth: 10000 },
+          gasGwei: 20,
+          variables: {},
+          events: [],
+        }),
+    };
+    const { engine, executor, workflows } = makeEngine({ context });
+    const wf = dcaWorkflow({ trigger: { kind: 'price_move', symbol: 'BTC', direction: 'drops', pct: 10 }, condition: { op: 'always' } });
+
+    // Tick 1 — rising edge: fires once.
+    const t1 = await engine.runWorkflow(wf, { nowIso: '2026-01-05T10:00:00.000Z' });
+    expect(t1.status).toBe('executed');
+    expect(executor.calls).toHaveLength(1);
+
+    // Tick 2 — DIFFERENT instant (so the idempotency key differs), condition STILL true: no rising edge → skip.
+    const t2 = await engine.runWorkflow((await workflows.get('wf-1'))!, { nowIso: '2026-01-05T10:01:00.000Z' });
+    expect(t2.status).toBe('skipped');
+    expect(executor.calls).toHaveLength(1); // the pre-fix bug would make this 2 (re-fired while still true)
+
+    // Tick 3 — condition CLEARS (BTC recovers): re-arms, no fire.
+    move = 0;
+    const t3 = await engine.runWorkflow((await workflows.get('wf-1'))!, { nowIso: '2026-01-05T10:02:00.000Z' });
+    expect(t3.status).toBe('skipped');
+
+    // Tick 4 — condition RE-ASSERTS: rising edge again → fires again.
+    move = -0.15;
+    const t4 = await engine.runWorkflow((await workflows.get('wf-1'))!, { nowIso: '2026-01-05T10:03:00.000Z' });
+    expect(t4.status).toBe('executed');
+    expect(executor.calls).toHaveLength(2);
   });
 });

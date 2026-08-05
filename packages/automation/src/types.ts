@@ -94,6 +94,11 @@ export interface Workflow {
   sessionKeyId?: string;
   /** ISO timestamp of the last run (for cooldown + next-fire). */
   lastRunAtIso?: string;
+  /** For EVENT triggers: was the trigger condition active as of the last evaluation? Enables rising-edge
+   *  firing — an event fires once when it BECOMES true and re-arms only after it clears, so a level-matched
+   *  condition (e.g. "BTC down 10%") can't re-fire a fund-moving action every tick it stays true. Unset/false
+   *  ⇒ not currently active. Not used by schedule triggers (they edge via isScheduleDue). */
+  triggerActive?: boolean;
   /** Missed-schedule policy: fire once on catch-up, or skip entirely. */
   catchUp: 'skip' | 'once';
 }
