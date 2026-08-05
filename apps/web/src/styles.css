@@ -3256,6 +3256,18 @@ body {
 .brg-status { display: flex; flex-direction: column; gap: 9px; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 13px; }
 .brg-step { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text); opacity: .45; transition: opacity .2s var(--ease); }
 .brg-step.active, .brg-step.done { opacity: 1; }
+
+/* In-chat MAINNET swap (MainnetChatSwap) — a clean, single-focus quote card. */
+.mcs-tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); text-transform: uppercase; }
+.mcs-quote { background: var(--canvas); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 7px; margin: 4px 0 2px; }
+.mcs-recv { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.mcs-recv-amt { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.mcs-recv-sym { font-size: 15px; font-weight: 600; }
+.mcs-recv-usd { font-size: 13px; color: var(--muted); margin-left: auto; }
+.mcs-meta { font-size: 12.5px; color: var(--muted); }
+.mcs-ack { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; padding: 2px 0; cursor: pointer; }
+.mcs-ack input { margin-top: 2px; flex-shrink: 0; }
+.mcs-go { width: 100%; margin-top: 6px; }
 .brg-step.done b::before { content: '✓ '; color: var(--low); }
 .brg-step.active b::before { content: '⟳ '; color: var(--accent); }
 .brg-step a { color: var(--accent); text-decoration: none; font-family: ui-monospace, "SF Mono", monospace; font-size: 12px; white-space: nowrap; }
