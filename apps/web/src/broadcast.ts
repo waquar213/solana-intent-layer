@@ -658,7 +658,16 @@ export async function executeCrossChainSwapSolana(opts: CrossChainSwapSolanaExec
     console.warn('[crosschain] Solana simulateTransaction unavailable — proceeding on the other guards', e);
   }
   if (simRan && simErr != null) {
-    throw new Error(`Simulation refused this Solana route: it fails on-chain (${JSON.stringify(simErr)}). Re-quote and try again.`);
+    const raw = JSON.stringify(simErr);
+    // The overwhelmingly common cause on a fresh wallet is that it isn't funded — a Solana account only
+    // exists on-chain once it holds a balance, so the fee payer (or a required token account) is missing.
+    // Say that plainly + actionably; "AccountNotFound / re-quote" is neither. Other failures stay generic.
+    const unfunded = /AccountNotFound|InsufficientFundsForRent|insufficient (lamports|funds)/iu.test(raw);
+    throw new Error(
+      unfunded
+        ? `This swap can't go through — your Solana wallet isn't funded on mainnet (no SOL to swap, or to pay the fee / open the token account). Fund ${me.sol.address} with SOL, then try again.`
+        : `Simulation refused this route — it would fail on-chain (${raw}). Re-quote and try again.`,
+    );
   }
 
   const { txid } = await adapter.broadcastRawTransaction(signedTx);
