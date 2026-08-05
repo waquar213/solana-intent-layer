@@ -4995,7 +4995,11 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
           amountBase: real.amountBase,
           to: real.to,
           chain: real.chain,
-          ...(real.isMainnet ? { rpcUrl: DEFAULT_ETHEREUM_RPC } : {}),
+          // Only an EVM mainnet send uses the Ethereum RPC. A mainnet SOL send (chain 'solana') must NOT —
+          // passing DEFAULT_ETHEREUM_RPC here made sendSolTransfer POST getLatestBlockhash to an Ethereum
+          // node (method-not-found → the send always failed). Omit it so executeTransferStep picks the
+          // Solana mainnet RPC. (BTC/others aren't mainnet-wired, so 'ethereum' is the only mainnet RPC here.)
+          ...(real.isMainnet && real.chain === 'ethereum' ? { rpcUrl: DEFAULT_ETHEREUM_RPC } : {}),
           ...(guard ? { guard } : {}),
         });
         setRealTx(tx);
