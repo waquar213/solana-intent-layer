@@ -5550,7 +5550,11 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
         <div className="mn-confirm" role="alertdialog" aria-label="Confirm real mainnet transaction">
           <p className="mn-h">⚠️ Real mainnet transaction — this moves REAL funds</p>
           <p className="mn-lead">
-            Sending <b>{fmtAmount(Number(real.amountBase) / 1e18)} {real.asset}</b> on <b>Ethereum mainnet</b> to{' '}
+            {/* Per-asset decimals + the plan's own chain label — a SOL mainnet send has 9 decimals and settles
+                on Solana, not 18/Ethereum. The old `Number(amountBase)/1e18` + hardcoded "Ethereum mainnet"
+                showed 0.1 SOL as "0.0000000001 SOL on Ethereum mainnet" — a lie on the last screen before real
+                funds move. fmtMinBase is pure base-unit string math (no float). */}
+            Sending <b>{fmtMinBase(real.amountBase, NATIVE_DECIMALS[real.asset] ?? 18)} {real.asset}</b> on <b>{real.chainLabel}</b> to{' '}
             <code className="mn-addr">{real.to}</code>
             {real.amountUsd !== undefined && <> · ≈ <b>${real.amountUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b></>}. It is
             signed on your device and cannot be undone.
