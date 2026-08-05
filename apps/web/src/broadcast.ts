@@ -469,9 +469,11 @@ export async function swapGusdcForEthOnGiwa(opts: {
 // funds, cross-chain). Non-custodial: the key never leaves the browser. Exact-amount approval (never
 // unlimited). Fail-closed on an unknown chain.
 //
-// ⚠️ SECURITY REVIEW REQUIRED before this is wired to real funds: this moves REAL mainnet value. It is
-// gated behind the mainnet-ack + spend-cap guard (assertBroadcastAllowed) and must ALSO be driven only
-// from an explicit, informed user confirmation in the UI (never auto-run). Not yet surfaced in the app.
+// ⚠️ Real mainnet value. Reviewed in docs/security/crosschain-swap-security-review.md: gated behind the
+// mainnet-ack + spend-cap guard, EXACT ERC-20 approval (F4), and a native-value bound (F2, below) so a
+// hostile route can't sign away far more than quoted; driven only from an explicit UI ack (never auto).
+// Residual F1: the route calldata is opaque, so the recipient isn't deterministically verified —
+// transaction SIMULATION is the required gate before unattended real-fund GA.
 export interface CrossChainSwapExecInput {
   /** LI.FI-style numeric source chain id (mapped to our ChainId via the registry). */
   evmChainId: number;
@@ -536,6 +538,17 @@ export async function executeCrossChainSwapEvm(opts: CrossChainSwapExecInput): P
 
   // 2) The aggregator's swap transaction — we only SIGN (on-device) + broadcast what it built.
   const value = BigInt(opts.value || '0');
+  // SECURITY (defense-in-depth for the opaque aggregator tx): for a NATIVE source the tx.value IS the funds
+  // being spent, and the guard can't parse the route calldata. Bound value to a generous multiple of the
+  // input the user reviewed, so a malicious/compromised route response can't get a far larger native amount
+  // signed than was quoted. (An ERC-20 source moves funds via the EXACT approval above, not tx.value — there
+  // value is only the small native fee — so this native bound is for native sources only.) Fail-closed.
+  if (!opts.fromTokenAddress) {
+    const intended = BigInt(opts.approvalAmountBase || '0');
+    if (intended > 0n && value > intended * 4n) {
+      throw new Error("Refusing this route: its native value is more than 4× the amount you entered — the provider transaction doesn't match your quote. Re-quote and try again.");
+    }
+  }
   let gasLimit = opts.gasLimit ? (BigInt(opts.gasLimit) * 12n) / 10n : 0n;
   if (gasLimit <= 0n) {
     try {
@@ -565,8 +578,10 @@ export interface CrossChainSwapSolanaExecInput {
 // doctrine as the EVM path. Non-custodial: the ed25519 key never leaves the browser. Fail-closed: a
 // multi-signer route (we hold only the fee payer key) is refused inside extractSolSignableMessage.
 //
-// ⚠️ Real mainnet value. Gated behind the mainnet-ack + spend-cap guard and only ever run from an
-// explicit, informed UI confirmation (never auto). SECURITY REVIEW pending per ADR-0055.
+// ⚠️ Real mainnet value. Gated behind the mainnet-ack + spend-cap guard and only ever run from an explicit,
+// informed UI confirmation (never auto). Reviewed in docs/security/crosschain-swap-security-review.md
+// (finding F3): the Solana tx is opaque, so the amount isn't deterministically bounded — preflight
+// SIMULATION is the required gate before unattended real-fund GA; the multi-signer refusal is fail-closed.
 export async function executeCrossChainSwapSolana(opts: CrossChainSwapSolanaExecInput): Promise<EvmSendResult> {
   const me = currentIdentity();
   if (!me) throw new Error('Unlock your wallet first.');

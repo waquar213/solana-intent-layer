@@ -301,7 +301,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
             <label className="brg-note" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
               <span>
-                ⚠️ This moves <b>REAL mainnet funds</b> across chains and is <b>irreversible</b>. I've reviewed the route above and want to sign it on my device.
+                ⚠️ This moves <b>REAL mainnet funds</b> across chains and is <b>irreversible</b>. The route transaction is built by <b>{quote?.providerId ?? 'the aggregator'}</b> and signed on your device (non-custodial); the guard enforces the spend cap but can't inspect the full route. I've reviewed the quote above and trust this route.
               </span>
             </label>
             <button className="btn primary brg-go" onClick={() => void execute()} disabled={!canExecute} type="button">
