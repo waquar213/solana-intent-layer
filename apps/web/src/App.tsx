@@ -195,7 +195,10 @@ const SETTLED_TESTNET_NAMES: Record<string, string> = {
   'solana:mainnet': 'Solana devnet',
   'bip122:bitcoin': 'Bitcoin testnet',
 };
-const chainNameSettled = (id: string): string => SETTLED_TESTNET_NAMES[id] ?? CHAIN_NAMES[id] ?? id;
+const chainNameSettled = (id: string): string =>
+  // On MAINNET mode a Solana route settles on Solana MAINNET (the aggregator swap) — not the devnet the
+  // testnet build assumes. Every other id keeps the settled-testnet name.
+  id === 'solana:mainnet' && getNetworkMode() === 'mainnet' ? 'Solana' : (SETTLED_TESTNET_NAMES[id] ?? CHAIN_NAMES[id] ?? id);
 // A native-asset TRANSFER settles PER-ASSET (mirrors executableTransfer), not by the planner's
 // blanket eip155:1 home chain: native ETH → GIWA Sepolia (through the IntentExecutor), but an ERC-20
 // (USDC/USDT/DAI) stays on Ethereum Sepolia, SOL → devnet, BTC → testnet. chainNameSettled alone
@@ -4596,139 +4599,6 @@ const INFLIGHT_PLAN_IDS = new Set<string>();
 // cap). Cleared wherever the arming sets are (lock / manual / account-switch).
 const PLAN_AUTO_TRIED = new Set<string>();
 
-// In-chat MAINNET swap via the aggregator — the REAL mainnet path for a SOL⇄USDC chat swap, inline in the
-// conversation (the chat's own solAMM pool is Solana devnet). Quotes with LI.FI (same-chain Solana, e.g.
-// via Jupiter) and signs with the AUDITED executeCrossChainSwapSolana (mainnet-ack + $1,000 cap +
-// pre-broadcast simulation gate). Non-custodial: the aggregator only proposes; the device signs.
-function MainnetChatSwap({ swap, onExecuted }: { swap: RealSwap; onExecuted?: (item: ActivityItem) => void }): JSX.Element {
-  const { id } = useIdentity();
-  const fromSym = swap.fromSym.toUpperCase() === 'DUSDC' ? 'USDC' : swap.fromSym.toUpperCase();
-  const toSym = swap.toSym.toUpperCase() === 'DUSDC' ? 'USDC' : swap.toSym.toUpperCase();
-  const fromDec = fromSym === 'SOL' ? 9 : 6;
-  const [quote, setQuote] = useState<CrossChainSwapQuote | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [ack, setAck] = useState(false);
-  const [executing, setExecuting] = useState(false);
-  const [result, setResult] = useState<EvmSendResult | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    void (async (): Promise<void> => {
-      if (!id) return;
-      setLoading(true);
-      setErr(null);
-      try {
-        // Same-chain Solana mainnet swap (SOL⇄USDC). One provider (LI.FI/Jupiter) serves same-chain; deBridge
-        // is cross-chain only, so bestCrossChainQuote ranks a field of one here — fail-closed on a stale/unpriced.
-        const q = await makeLifiProvider().quote({
-          fromChainId: 'solana:mainnet',
-          toChainId: 'solana:mainnet',
-          fromToken: fromSym,
-          toToken: toSym,
-          amountInBase: BigInt(swap.amountInBase),
-          fromDecimals: fromDec,
-          fromAddress: id.sol.address,
-          toAddress: id.sol.address,
-          slippageBps: 50,
-        });
-        if (alive) setQuote(bestCrossChainQuote([q]).best);
-      } catch (e) {
-        if (alive) setErr(e instanceof Error ? e.message : 'Could not find a mainnet route');
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [id, fromSym, toSym, fromDec, swap.amountInBase]);
-
-  const execute = async (): Promise<void> => {
-    const ex = quote?.execution;
-    if (!ex || ex.ecosystem !== 'solana') {
-      setErr('This route has no executable Solana transaction.');
-      return;
-    }
-    const data = (ex.raw as { data?: string }).data;
-    if (!data) {
-      setErr('Malformed route transaction from the provider.');
-      return;
-    }
-    setExecuting(true);
-    setErr(null);
-    try {
-      const valueUsd = quote && quote.toValueMicros !== null ? Number(quote.toValueMicros) / 1e6 : undefined;
-      const r = await executeCrossChainSwapSolana({
-        data,
-        ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}),
-        // Explicit real-funds acknowledgment — the guard blocks a mainnet broadcast without it.
-        guard: { acknowledgeMainnet: true, acknowledgeHighValue: true, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}) },
-      });
-      setResult(r);
-      onExecuted?.({ id: r.txid, kind: 'swap', status: 'completed', chainId: 'Solana', txid: r.txid, explorerUrl: r.explorerUrl });
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Swap failed');
-    } finally {
-      setExecuting(false);
-    }
-  };
-
-  const fmtClean = (base: bigint, decimals: number, maxDp = 4): string => {
-    const s = base.toString().padStart(decimals + 1, '0');
-    const whole = s.slice(0, -decimals) || '0';
-    const frac = s.slice(-decimals).slice(0, maxDp).replace(/0+$/u, '');
-    return frac ? `${whole}.${frac}` : whole;
-  };
-  const usd = quote?.toValueMicros != null ? `$${(Number(quote.toValueMicros) / 1e6).toFixed(2)}` : '—';
-  const fee = quote ? `$${(Number(quote.feeMicros) / 1e6).toFixed(2)}` : '';
-  const eta = quote ? (quote.etaSeconds < 1 ? 'instant' : `~${quote.etaSeconds}s`) : '';
-
-  return (
-    <div className="flow card">
-      <div className="flow-top">
-        <span className="kind">Swap</span>
-        <span className="mcs-tag">◎ Solana · Mainnet · real funds</span>
-      </div>
-      <p className="flow-lead">
-        <b>{fmtClean(BigInt(swap.amountInBase), fromDec)} {fromSym}</b> → <b>{toSym}</b> · non-custodial, your device signs.
-      </p>
-      {loading && <p className="muted">Finding the best mainnet route…</p>}
-      {quote && !result && (
-        <>
-          <div className="mcs-quote">
-            <div className="mcs-recv">
-              <span className="mcs-recv-amt">{fmtClean(quote.toAmountBase, quote.toDecimals)}</span>
-              <span className="mcs-recv-sym">{quote.toTokenSymbol}</span>
-              <span className="mcs-recv-usd">≈ {usd}</span>
-            </div>
-            <div className="mcs-meta">
-              🏆 <b>{quote.providerId}</b> via {quote.tool} · fee {fee} · {eta}
-            </div>
-          </div>
-          <label className="mcs-ack">
-            <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
-            <span>
-              I've reviewed the quote and want to sign this <b>real, irreversible</b> mainnet swap on my device (built by {quote.providerId}).
-            </span>
-          </label>
-          <button className="btn primary mcs-go" onClick={() => void execute()} disabled={!ack || executing} type="button">
-            {executing ? 'Signing on device…' : `Swap ${fromSym} → ${toSym}`}
-          </button>
-        </>
-      )}
-      {result && (
-        <p className="brg-note">
-          ✅ Broadcast:{' '}
-          <a href={result.explorerUrl} target="_blank" rel="noreferrer">
-            {result.txid.slice(0, 16)}… →
-          </a>
-        </p>
-      )}
-      {err && <p className="authz-deny err-line">🛑 {err}</p>}
-    </div>
-  );
-}
 
 function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (item: ActivityItem) => void }): JSX.Element {
   // Restore a prior execution (survives remount) so we never re-broadcast and the receipt persists.
@@ -4887,10 +4757,10 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // mode there is NO in-chat mainnet pool, so executing would sign a devnet/testnet tx while the user believes
   // they're on mainnet — fail closed (below) and point to the real mainnet path (the Swap tab aggregator).
   const onMainnet = useNetworkMode() === 'mainnet';
-  // On mainnet, a SOL⇄USDC chat swap runs for REAL via the aggregator (see the early return to
-  // MainnetChatSwap below). The EVM in-chat pools (GIWA AMM) and convert-and-send have no mainnet path yet,
-  // so those still redirect to the Swap tab (fail-closed).
-  const mainnetSolSwap = onMainnet && solanaSwap && swap != null;
+  // On mainnet, a SOL⇄USDC chat swap runs for REAL via the aggregator, rendered through the SAME plan
+  // stages as testnet (quote + execute swapped to the aggregator; see the swap quote effect + execute).
+  // The EVM in-chat pools (GIWA AMM) and convert-and-send have no mainnet path yet, so those still redirect
+  // to the Swap tab (fail-closed).
   const testnetSwapOnMainnet = onMainnet && (giwaSwap || swapSend != null);
   // Which curve the plan settles on — an imported single-curve account can only sign its OWN. Hoisted
   // to component scope so BOTH the manual Execute button AND the Auto-mode effect gate on it (the
@@ -4918,8 +4788,12 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
           : null;
   const wrongCurve = importedKind !== null && planCurve !== null && planCurve !== importedKind;
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
+  // On MAINNET a SOL⇄USDC swap is quoted by the aggregator (LI.FI) but rendered through the SAME plan
+  // stages as testnet — swapQuote drives the UI; aggQuote holds the aggregator's unsigned tx for execution.
+  const [aggQuote, setAggQuote] = useState<CrossChainSwapQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteFailed, setQuoteFailed] = useState(false); // the one-shot quote fetch REJECTED (vs. still in flight)
+  const [quoteErrMsg, setQuoteErrMsg] = useState<string | null>(null); // the WHY of a failed quote (e.g. provider rate limit)
   const [quoteAttempt, setQuoteAttempt] = useState(0); // bump to force a re-quote after a failure
   // User-controlled max slippage (bps). The guaranteed minimum received is shown
   // before signing — no invisible fixed slippage on a real-fund swap.
@@ -4946,6 +4820,45 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
     if (!canSwap || !swap) return;
     setQuoting(true);
     setQuoteFailed(false);
+    setAggQuote(null);
+    // MAINNET SOL⇄USDC: quote via the aggregator (LI.FI, same-chain Solana) and ADAPT it to the SwapQuote
+    // shape the testnet solAMM uses — so the plan renders the exact same route + quote stages on both networks.
+    if (onMainnet && solanaSwap) {
+      const me2 = currentIdentity();
+      const fromSym = swap.fromSym.toUpperCase() === 'DUSDC' ? 'USDC' : swap.fromSym.toUpperCase();
+      const toSym = swap.toSym.toUpperCase() === 'DUSDC' ? 'USDC' : swap.toSym.toUpperCase();
+      // NOTE: no client-side LI.FI API key — a VITE_ env is embedded in the browser bundle, and LI.FI's docs
+      // explicitly warn never to expose the key client-side. The free tier (75 quotes / 2h) suffices for real
+      // use; higher throughput belongs behind a BACKEND proxy that holds the key server-side (follow-up).
+      void (me2
+        ? makeLifiProvider().quote({
+            fromChainId: 'solana:mainnet',
+            toChainId: 'solana:mainnet',
+            fromToken: fromSym,
+            toToken: toSym,
+            amountInBase: BigInt(swap.amountInBase),
+            fromDecimals: fromSym === 'SOL' ? 9 : 6,
+            fromAddress: me2.sol.address,
+            toAddress: me2.sol.address,
+            slippageBps: 50,
+          })
+        : Promise.reject(new Error('Unlock your wallet first.'))
+      )
+        .then((agg) => {
+          const best = bestCrossChainQuote([agg]).best; // validate (fail-closed on a stale/unpriced quote)
+          setAggQuote(best);
+          setQuoteErrMsg(null);
+          setSwapQuote({ amountOut: best.toAmountBase, decimalsOut: best.toDecimals, symbolOut: best.toTokenSymbol, fee: 0 });
+        })
+        .catch((e) => {
+          setSwapQuote(null);
+          setAggQuote(null);
+          setQuoteFailed(true);
+          setQuoteErrMsg(e instanceof Error ? e.message : 'Quote failed');
+        })
+        .finally(() => setQuoting(false));
+      return;
+    }
     void (solanaSwap
       ? solanaSwapReverse
         ? quoteSolammSell(swap.amountInBase)
@@ -4962,7 +4875,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
       })
       .finally(() => setQuoting(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSwap, swapKey, quoteAttempt]);
+  }, [canSwap, swapKey, quoteAttempt, onMainnet]);
 
   // The compound's swap leg uses the SAME live quote + slippage floor as a standalone swap — one
   // quote source per venue AND direction, so the on-chain floor always comes from the pool that
@@ -5017,9 +4930,10 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   const execInFlightRef = useRef(false);
 
   const execute = async (): Promise<void> => {
-    // A REAL mainnet broadcast NEVER fires without an explicit confirm — that click is the
-    // GuardAck the deterministic guard demands. Testnet/devnet run straight through.
-    if (canReal && real?.isMainnet) {
+    // A REAL mainnet broadcast NEVER fires without an explicit confirm — that click is the GuardAck the
+    // deterministic guard demands. Covers a mainnet transfer AND a mainnet aggregator swap. Testnet/devnet
+    // (solAMM / GIWA) run straight through.
+    if ((canReal && real?.isMainnet) || (canSwap && onMainnet && solanaSwap)) {
       setMainnetAsk(true);
       return;
     }
@@ -5088,18 +5002,32 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
         if (!swapQuote || minOut === null) throw new Error('Still fetching a live quote — try again in a second.');
         // amountOutMin is the user-chosen floor — the swap reverts on-chain rather
         // than delivering less, so slippage/MEV can never silently cost the user.
-        const tx = solanaSwap
-          ? solanaSwapReverse
-            ? await swapDusdcForSol({ tokenBase: swap.amountInBase, amountOutMin: minOut })
-            : await swapSolForDusdc({ lamportsBase: swap.amountInBase, amountOutMin: minOut })
-          : giwaSwap
-            ? giwaSwapReverse
-              ? await swapGusdcForEthOnGiwa({ tokenAmountBase: swap.amountInBase, amountOutMin: minOut })
-              : await swapEthForGusdcOnGiwa({ ethAmountBase: swap.amountInBase, amountOutMin: minOut })
-            : await sendSwap({ fromSym: swap.fromSym, toSym: swap.toSym, amountInBase: swap.amountInBase, amountOutMin: minOut, fee: swapQuote.fee });
+        const tx =
+          onMainnet && solanaSwap
+            ? // MAINNET: sign + broadcast the aggregator's route (same non-custodial Solana executor as the
+              // Swap tab — mainnet-ack + spend cap + pre-broadcast simulation gate).
+              await (async () => {
+                const data = (aggQuote?.execution?.raw as { data?: string } | undefined)?.data;
+                if (!data) throw new Error('No executable mainnet route — re-quote and try again.');
+                const valueUsd = aggQuote && aggQuote.toValueMicros !== null ? Number(aggQuote.toValueMicros) / 1e6 : undefined;
+                return executeCrossChainSwapSolana({
+                  data,
+                  ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}),
+                  guard: { acknowledgeMainnet: true, acknowledgeHighValue: ackHighValue, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}) },
+                });
+              })()
+            : solanaSwap
+              ? solanaSwapReverse
+                ? await swapDusdcForSol({ tokenBase: swap.amountInBase, amountOutMin: minOut })
+                : await swapSolForDusdc({ lamportsBase: swap.amountInBase, amountOutMin: minOut })
+              : giwaSwap
+                ? giwaSwapReverse
+                  ? await swapGusdcForEthOnGiwa({ tokenAmountBase: swap.amountInBase, amountOutMin: minOut })
+                  : await swapEthForGusdcOnGiwa({ ethAmountBase: swap.amountInBase, amountOutMin: minOut })
+                : await sendSwap({ fromSym: swap.fromSym, toSym: swap.toSym, amountInBase: swap.amountInBase, amountOutMin: minOut, fee: swapQuote.fee });
         setRealTx(tx);
         EXECUTED_PLANS.set(plan.planId, { realTx: tx, swapSendTx: null }); // durable — no re-send on remount
-        setPhase('done');        onExecuted?.({ id: tx.txid, kind: plan.intentKind, status: 'completed', chainId: solanaSwap ? 'Solana devnet' : giwaSwap ? 'GIWA Sepolia' : 'Sepolia', txid: tx.txid, explorerUrl: tx.explorerUrl });
+        setPhase('done');        onExecuted?.({ id: tx.txid, kind: plan.intentKind, status: 'completed', chainId: onMainnet && solanaSwap ? 'Solana' : solanaSwap ? 'Solana devnet' : giwaSwap ? 'GIWA Sepolia' : 'Sepolia', txid: tx.txid, explorerUrl: tx.explorerUrl });
         return;
       }
       if (canSwapSend && swapSend) {
@@ -5264,11 +5192,6 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
     return s;
   })();
 
-  // On MAINNET, a SOL⇄USDC chat swap executes for REAL through the aggregator (LI.FI same-chain Solana),
-  // signed by the audited executeCrossChainSwapSolana — NOT the devnet solAMM. Render that flow instead of
-  // the testnet plan. (All hooks above have already run, so this conditional render is hooks-safe.)
-  if (mainnetSolSwap && swap) return <MainnetChatSwap swap={swap} onExecuted={onExecuted} />;
-
   return (
     <div className="flow card">
       <div className="flow-top">
@@ -5309,7 +5232,9 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
                 : giwaSwap
                   ? 'GIWA Sepolia'
                   : solanaSwap
-                    ? 'Solana devnet'
+                    ? onMainnet
+                      ? 'Solana mainnet'
+                      : 'Solana devnet'
                     : chainNameSettled(plan.steps[0]?.chainId ?? ''))}
             .
           </span>
@@ -5437,7 +5362,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
           ) : canSwap && swap ? (
             <div className="swap-quote">
               <span className="muted">
-                {solanaSwap ? 'Live solAMM quote:' : giwaSwap ? 'Live GIWA AMM quote:' : 'Real Uniswap quote:'}{' '}
+                {onMainnet && solanaSwap ? 'Live aggregator quote:' : solanaSwap ? 'Live solAMM quote:' : giwaSwap ? 'Live GIWA AMM quote:' : 'Real Uniswap quote:'}{' '}
                 <b>
                   {swapQuote
                     ? `${fmtAmount(Number(swapQuote.amountOut) / 10 ** swapQuote.decimalsOut)} ${swapQuote.symbolOut}`
@@ -5445,7 +5370,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
                       ? 'fetching…'
                       : '—'}
                 </b>{' '}
-                {solanaSwap ? '· swaps on our on-chain Solana DEX' : giwaSwap ? '· swaps on our on-chain GIWA DEX' : '· swaps in-browser on Sepolia'}
+                {onMainnet && solanaSwap ? `· via ${aggQuote?.tool ?? aggQuote?.providerId ?? 'the aggregator'} on Solana mainnet (real funds)` : solanaSwap ? '· swaps on our on-chain Solana DEX' : giwaSwap ? '· swaps on our on-chain GIWA DEX' : '· swaps in-browser on Sepolia'}
               </span>
               {swapQuote && (
                 <div className="slippage">
@@ -5558,6 +5483,11 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
                   <button className="wl-link" onClick={() => setQuoteAttempt((n) => n + 1)}>
                     ↻ Retry quote
                   </button>
+                )}
+                {quoteFailed && quoteErrMsg && (
+                  <p className="muted" style={{ color: 'var(--medium)', fontSize: 12, margin: '2px 0 0' }}>
+                    {quoteErrMsg}
+                  </p>
                 )}
               </>
             );
