@@ -4965,6 +4965,9 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // execute" was a silent no-op and the mainnet chat swap could never run. mnUsd/mnOverCap drive the same
   // tier-2 high-value gate for whichever kind is being confirmed.
   const mainnetSwapConfirm = canSwap && onMainnet && solanaSwap;
+  // A plan whose execute() opens the real-funds confirm instead of broadcasting — a mainnet transfer OR a
+  // mainnet aggregator swap. Single source of truth for execute() AND the Auto-mode budget reservation.
+  const opensMainnetConfirm = (canReal && real?.isMainnet === true) || mainnetSwapConfirm;
   const swapUsd = aggQuote && aggQuote.toValueMicros !== null ? Number(aggQuote.toValueMicros) / 1e6 : undefined;
   const mnUsd: number | undefined = real ? real.amountUsd : mainnetSwapConfirm ? swapUsd : undefined;
   const mnOverCap = mnUsd === undefined || mnUsd > 1000;
@@ -4983,7 +4986,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
     // A REAL mainnet broadcast NEVER fires without an explicit confirm — that click is the GuardAck the
     // deterministic guard demands. Covers a mainnet transfer AND a mainnet aggregator swap. Testnet/devnet
     // (solAMM / GIWA) run straight through.
-    if ((canReal && real?.isMainnet) || (canSwap && onMainnet && solanaSwap)) {
+    if (opensMainnetConfirm) {
       setMainnetAsk(true);
       return;
     }
@@ -5211,7 +5214,13 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
       // deciding in the same window sees this spend and the daily cap actually binds across a batch.
       // A failed tx over-counts, which errs SAFE for a cap. Only auto-driven executable plans reach
       // here (gated above), so this never records a manual send.
-      if (usdVal != null) recordAutoSpendUsd(usdVal);
+      //
+      // EXCEPT a plan that opens the mainnet confirm: execute() below won't broadcast it (a human must
+      // click Confirm), and mainnet spends are bounded by the guard's per-broadcast $1,000 cap — NOT the
+      // daily AUTO cap, which governs UNATTENDED spends. Reserving here would wrongly debit the auto budget
+      // for an attended, guard-capped spend, and could later falsely drop a legitimate testnet auto send to
+      // manual. So skip the reservation for those; the manual confirm (runExecute) is the real gate.
+      if (usdVal != null && !opensMainnetConfirm) recordAutoSpendUsd(usdVal);
       void execute();
     }
     // A failed authorize/execute drops back to 'planned'/'authorized' — we do NOT auto-retry (that
