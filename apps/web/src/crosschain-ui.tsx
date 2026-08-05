@@ -122,6 +122,19 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     setAck(false);
     setHvAck(false);
   }, [netMode]);
+  // Any change to the quote INPUTS (amount, tokens, chains) invalidates the fetched route. execute() derives
+  // `approvalAmountBase` from the LIVE amount + fromToken but broadcasts the QUOTE's tx — so without this a
+  // user could quote 1 USDC, edit the amount to 5000 (or switch USDC→ETH, 6→18 decimals), and sign
+  // `approve(router, 5000 USDC)` — or an effectively-unlimited allowance — against the stale 1-USDC route,
+  // violating the "approval is EXACT, never unlimited" invariant (and the guard's amountUsd is stale too, so
+  // the cap misses it). Clear the quote + acks so a fresh quote is required before the button can execute.
+  useEffect(() => {
+    setQuote(null);
+    setRanked([]);
+    setResult(null);
+    setAck(false);
+    setHvAck(false);
+  }, [amount, fromToken, toToken, fromKey, toKey]);
 
   const getQuote = async (): Promise<void> => {
     setLoading(true);
