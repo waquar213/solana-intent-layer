@@ -4701,7 +4701,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
     // `real` native-transfer path has a wallet-owned recipient; a convert-and-send goes to an EXTERNAL one.
     if (real?.to) {
       const meSelf = currentIdentity();
-      const ownChk = !meSelf ? '' : chain === 'bitcoin-testnet' ? (btcTestnetAddress() ?? '') : chain === 'solana-devnet' ? meSelf.sol.address : meSelf.evm.address;
+      const ownChk = !meSelf ? '' : chain === 'bitcoin-testnet' ? (btcTestnetAddress() ?? '') : chain === 'solana-devnet' || chain === 'solana' ? meSelf.sol.address : meSelf.evm.address;
       if (ownChk && ownChk.toLowerCase() === real.to.trim().toLowerCase()) return [];
     }
     // Derive decimals from the ASSET, not a native-only ternary. A 6-dp ERC-20/SPL (USDC) fell into the
@@ -5034,7 +5034,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
           ? ''
           : real.chain === 'bitcoin-testnet'
             ? (btcTestnetAddress() ?? '')
-            : real.chain === 'solana-devnet'
+            : real.chain === 'solana-devnet' || real.chain === 'solana'
               ? selfMe.sol.address
               : selfMe.evm.address;
         if (!ownOnChain || ownOnChain.toLowerCase() !== real.to.trim().toLowerCase()) {
