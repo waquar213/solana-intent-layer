@@ -153,11 +153,13 @@ import type {
 
 // Natural-language prompts the demo wallet (2 ETH + 5,000 USDC) actually handles.
 const EXAMPLES: Array<{ label: string; prompt: string; icon: string }> = [
-  { icon: '💸', label: 'Send 0.01 SOL', prompt: 'Send 0.01 SOL to So11111111111111111111111111111111111111112' },
-  { icon: '🔄', label: 'Swap 0.001 ETH for USDC', prompt: 'Swap 0.001 ETH for USDC' },
+  // Solana is the HOME chain — lead with Solana intents (all plan: Send SOL, SOL↔USDC swaps via the
+  // on-chain DEX). EVM examples follow for the cross-chain/stake flows Solana doesn't cover yet.
+  { icon: '💸', label: 'Send 0.05 SOL', prompt: 'Send 0.05 SOL to So11111111111111111111111111111111111111112' },
+  { icon: '🔄', label: 'Swap 2 SOL for USDC', prompt: 'Swap 2 SOL for USDC' },
+  { icon: '🔄', label: 'Swap 100 USDC for SOL', prompt: 'Swap 100 USDC for SOL' },
   { icon: '🌉', label: 'Bridge 0.01 ETH to GIWA', prompt: 'Bridge 0.01 ETH to GIWA' },
   { icon: '🔒', label: 'Stake 0.001 ETH', prompt: 'Stake 0.001 ETH' },
-  { icon: '🔄', label: 'Swap 1 USDC for ETH', prompt: 'Swap 1 USDC for ETH' },
 ];
 
 // Every chain the planner can name in a plan MUST be here. The testnets were missing, so the plan
@@ -2367,7 +2369,7 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
                   void submit(utterance);
                 }}
               >
-                <input value={utterance} onChange={(e) => setUtterance(e.target.value)} placeholder="Ask AI… e.g. Swap 100 USDC for ETH" aria-label="Ask your wallet" />
+                <input value={utterance} onChange={(e) => setUtterance(e.target.value)} placeholder="Ask AI… e.g. Send 2 SOL to alice" aria-label="Ask your wallet" />
                 <button className="btn send" type="submit" disabled={loading || !utterance.trim()} aria-label="Ask">
                   {loading ? <span className="spin" /> : '↑'}
                 </button>
@@ -2416,7 +2418,7 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
                       <ActIcon d={['M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z']} />
                     </span>
                     <p className="ai-empty-h">Ask your wallet anything</p>
-                    <p className="ai-empty-sub">“Send 0.01 SOL to …”, “Swap 0.001 ETH for USDC”, “Bridge 0.01 ETH to GIWA”.</p>
+                    <p className="ai-empty-sub">“Send 2 SOL to alice”, “Swap 2 SOL for USDC”, “Swap 100 USDC for SOL”.</p>
                   </div>
                 )}
               </div>
@@ -2430,7 +2432,7 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
                   <input
                     value={utterance}
                     onChange={(e) => setUtterance(e.target.value)}
-                    placeholder="Type naturally… e.g. Swap 100 USDC for ETH"
+                    placeholder="Type naturally… e.g. Swap 2 SOL for USDC"
                     autoFocus
                     aria-label="Tell your wallet what you want"
                   />
