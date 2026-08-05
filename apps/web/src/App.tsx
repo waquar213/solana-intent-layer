@@ -202,7 +202,7 @@ const chainNameSettled = (id: string): string => SETTLED_TESTNET_NAMES[id] ?? CH
 // mislabels a USDC transfer as GIWA — its eip155:1 → GIWA map is only correct for native ETH.
 const transferSettlementLabel = (asset: string | undefined): string => {
   const a = (asset ?? '').toUpperCase();
-  if (a === 'SOL') return 'Solana devnet';
+  if (a === 'SOL') return getNetworkMode() === 'mainnet' ? 'Solana' : 'Solana devnet'; // native SOL sends on mainnet in Mainnet mode
   if (a === 'BTC') return 'Bitcoin testnet';
   if (a === 'ETH') return GIWA_INTENT_EXECUTOR ? 'GIWA Sepolia' : 'Ethereum Sepolia';
   return 'Ethereum Sepolia'; // ERC-20 transfers broadcast on Ethereum Sepolia (no GIWA token map yet)
@@ -3940,8 +3940,14 @@ function executableTransfer(plan: ExecutionPlan): RealTransfer | null {
   const a = p.asset.toUpperCase();
   const amountUsd = plan.quote?.youSend?.valueMicros ? Number(plan.quote.youSend.valueMicros) / 1e6 : undefined;
   const usd = amountUsd !== undefined ? { amountUsd } : {};
-  // Non-EVM natives run on their devnet/testnet only (mainnet SOL/BTC broadcast isn't wired).
-  if (a === 'SOL') return { asset: a, to: p.to, amountBase: p.amountBase, chain: 'solana-devnet', chainLabel: 'Solana devnet', isMainnet: false, ...usd };
+  // Native SOL runs on MAINNET in Mainnet mode (real funds, gated by the mainnet-ack + spend-cap guard);
+  // else Solana devnet. SOL is native — no token map to get wrong — so the mainnet path is safe to wire.
+  if (a === 'SOL') {
+    return getNetworkMode() === 'mainnet'
+      ? { asset: a, to: p.to, amountBase: p.amountBase, chain: 'solana', chainLabel: 'Solana mainnet', isMainnet: true, ...usd }
+      : { asset: a, to: p.to, amountBase: p.amountBase, chain: 'solana-devnet', chainLabel: 'Solana devnet', isMainnet: false, ...usd };
+  }
+  // BTC native runs on testnet only (mainnet BTC broadcast isn't wired).
   if (a === 'BTC') return { asset: a, to: p.to, amountBase: p.amountBase, chain: 'bitcoin-testnet', chainLabel: 'Bitcoin testnet', isMainnet: false, ...usd };
   // EVM: mainnet only in Mainnet mode AND only native ETH (mainnet ERC-20 needs a verified token map).
   if (getNetworkMode() === 'mainnet' && a === 'ETH') {
@@ -4878,7 +4884,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // that would otherwise throw only at the signing boundary — and Auto has no per-tx click to stop it).
   const importedKind = isActiveImported() ? activeImportedKind() : null;
   const planCurve: 'evm' | 'sol' | 'btc' | null = real
-    ? real.chain === 'solana-devnet'
+    ? real.chain === 'solana-devnet' || real.chain === 'solana'
       ? 'sol'
       : real.chain === 'bitcoin-testnet'
         ? 'btc'

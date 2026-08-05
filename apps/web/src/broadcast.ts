@@ -60,6 +60,7 @@ import {
   solPublicKey,
   type Eip1559Transaction,
 } from './wallet';
+import { getNetworkMode } from './settings';
 import { knownGoodAddresses } from './recents';
 
 // Each default falls back to a public, keyless endpoint but can be overridden by
@@ -1192,13 +1193,18 @@ export async function getSolTestnetBalance(rpcUrl = DEFAULT_DEVNET_RPC): Promise
  * the transfer message → sign it in-browser with the wallet's ed25519 key → assemble
  * and send the wire transaction. Returns the signature + explorer link.
  */
-export async function sendSolTransfer(opts: { rpcUrl?: string; to: string; solAmount: string; guard?: GuardAck }): Promise<EvmSendResult> {
+export async function sendSolTransfer(opts: { rpcUrl?: string; to: string; solAmount: string; guard?: GuardAck; chain?: 'solana' | 'solana-devnet' }): Promise<EvmSendResult> {
   const me = currentIdentity();
   if (!me) throw new Error('Unlock your wallet first.');
-  assertBroadcastAllowed(guardInput('solana-devnet', opts.to.trim(), opts.guard));
-  const rpcUrl = opts.rpcUrl?.trim() || DEFAULT_DEVNET_RPC;
+  // Network follows `chain` (default devnet). The guard is keyed on it — 'solana' is a mainnet (testnet:false)
+  // registry chain, so a mainnet send is automatically gated by the mainnet-ack + $1,000 spend cap; devnet
+  // waves through. Nothing else about the (self-built, non-opaque) transfer changes between the two.
+  const chain: ChainId = opts.chain === 'solana' ? 'solana' : 'solana-devnet';
+  const mainnet = chain === 'solana';
+  assertBroadcastAllowed(guardInput(chain, opts.to.trim(), opts.guard));
+  const rpcUrl = opts.rpcUrl?.trim() || (mainnet ? DEFAULT_SOLANA_MAINNET_RPC : DEFAULT_DEVNET_RPC);
   const pool = new ProviderPool([new HttpJsonRpcTransport(rpcUrl)]);
-  const adapter = new SolanaAdapter('solana-devnet', pool);
+  const adapter = new SolanaAdapter(chain, pool);
 
   const bh = await pool.request<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'finalized' }]);
   const message = buildSolTransferMessage({
@@ -1209,7 +1215,7 @@ export async function sendSolTransfer(opts: { rpcUrl?: string; to: string; solAm
   });
   const signature = signSolanaMessage(message); // in-browser, with the user's key
   const { txid } = await adapter.broadcastRawTransaction(assembleSolTransaction(message, signature));
-  return { txid, explorerUrl: `https://explorer.solana.com/tx/${txid}?cluster=devnet` };
+  return { txid, explorerUrl: mainnet ? `https://explorer.solana.com/tx/${txid}` : `https://explorer.solana.com/tx/${txid}?cluster=devnet` };
 }
 
 /** Known SPL tokens on Solana devnet (symbol → mint + decimals). Verified on-chain. */
@@ -2362,7 +2368,9 @@ export async function balanceForAsset(asset: string): Promise<{ amount: string; 
     return GIWA_INTENT_EXECUTOR
       ? { amount: await getEvmTestnetBalance('giwa-sepolia', DEFAULT_GIWA_RPC), symbol: 'ETH' }
       : { amount: await getEvmTestnetBalance('sepolia'), symbol: 'ETH' };
-  if (a === 'SOL') return { amount: await getSolTestnetBalance(), symbol: 'SOL' };
+  // SOL sends settle on mainnet in Mainnet mode, so read the balance from the network the send will use —
+  // showing the devnet balance under a "Solana mainnet" label would be dishonest.
+  if (a === 'SOL') return { amount: await getSolTestnetBalance(getNetworkMode() === 'mainnet' ? DEFAULT_SOLANA_MAINNET_RPC : DEFAULT_DEVNET_RPC), symbol: 'SOL' };
   if (a === 'BTC') return { amount: await getBtcTestnetBalance(), symbol: 'BTC' };
   return null;
 }
@@ -2408,7 +2416,13 @@ export async function executeTransferStep(step: {
     // mainnet (real funds, gated by the guard's acknowledgeMainnet + spend cap).
     return sendEvmTransfer({ to, ethAmount: amount, ...(step.chain ? { chain: step.chain } : {}), ...(step.rpcUrl ? { rpcUrl: step.rpcUrl } : {}), ...g });
   }
-  // SOL/BTC native are wired to devnet/testnet only; their mainnet RPC path isn't built.
+  // Native SOL on Solana MAINNET — real funds, gated by the guard (acknowledgeMainnet + spend cap). SOL is
+  // native (no token address to get wrong) and the transfer is self-built (the guard validates recipient +
+  // amount), so the mainnet path is safe to wire.
+  if (asset === 'SOL' && step.chain === 'solana') {
+    return sendSolTransfer({ to, solAmount: amount, chain: 'solana', ...(step.rpcUrl ? { rpcUrl: step.rpcUrl } : {}), ...g });
+  }
+  // BTC native is still devnet/testnet only; its mainnet RPC path isn't built.
   if (onMainnet) throw new Error(`${asset} on mainnet isn't wired yet — this build broadcasts ${asset} on its testnet/devnet.`);
   if (asset === 'SOL') return sendSolTransfer({ to, solAmount: amount, ...g });
   return sendBtcTransfer({ to, btcAmount: amount, ...g });
