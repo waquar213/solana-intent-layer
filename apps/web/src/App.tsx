@@ -4827,11 +4827,10 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
       const me2 = currentIdentity();
       const fromSym = swap.fromSym.toUpperCase() === 'DUSDC' ? 'USDC' : swap.fromSym.toUpperCase();
       const toSym = swap.toSym.toUpperCase() === 'DUSDC' ? 'USDC' : swap.toSym.toUpperCase();
-      // NOTE: no client-side LI.FI API key — a VITE_ env is embedded in the browser bundle, and LI.FI's docs
-      // explicitly warn never to expose the key client-side. The free tier (75 quotes / 2h) suffices for real
-      // use; higher throughput belongs behind a BACKEND proxy that holds the key server-side (follow-up).
+      // Quote through the BACKEND proxy (/v1/lifi), which adds the LI.FI key SERVER-SIDE — the key never
+      // touches the browser bundle (LI.FI's own guidance) and we get the keyed rate limit (100/min).
       void (me2
-        ? makeLifiProvider().quote({
+        ? makeLifiProvider({ baseUrl: '/v1/lifi' }).quote({
             fromChainId: 'solana:mainnet',
             toChainId: 'solana:mainnet',
             fromToken: fromSym,

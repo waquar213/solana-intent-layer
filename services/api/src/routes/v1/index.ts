@@ -20,6 +20,7 @@ import { InMemorySessionRevoker, type SessionRevoker } from '../../auth/revoker.
 import type { InsightsSource } from '../../insights.js';
 import type { EvmTxItem } from '../../history.js';
 import type { BalancesReader } from '../../balances.js';
+import { makeLifiProxy } from '../../lifi.js';
 
 export interface V1RouteOptions {
   /** The composition root (dev seed). When present, the intent endpoints are exposed. */
@@ -127,6 +128,24 @@ export async function registerV1Routes(app: FastifyInstance, opts: V1RouteOption
         addrs.sol = b.sol.trim();
       }
       return balances(addrs);
+    });
+  }
+
+  // Public LI.FI quote PROXY — GET /v1/lifi/quote?fromChain=…&toChain=…&… → forwards to li.quest with the
+  // SERVER-SIDE key (IW_LIFI_API_KEY), never shipping the secret to the browser (LI.FI's own guidance). The
+  // upstream status + JSON body pass through verbatim, so a rate-limit (429) or bad-request (400) surfaces
+  // to the client honestly. Read-only: it relays a quote; the unsigned route tx is still signed on-device.
+  {
+    const lifi = makeLifiProxy();
+    app.get('/v1/lifi/quote', publicFanout, async (request, reply) => {
+      const q = request.query as Record<string, unknown>;
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(q)) if (typeof v === 'string' && v.length > 0) params.set(k, v);
+      for (const need of ['fromChain', 'toChain', 'fromToken', 'toToken', 'fromAmount', 'fromAddress'] as const) {
+        if (!params.get(need)) throw badRequest(`missing required LI.FI quote param: ${need}`);
+      }
+      const { status, body } = await lifi.quote(params);
+      return reply.code(status).send(body);
     });
   }
 

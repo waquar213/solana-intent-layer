@@ -82,7 +82,8 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
 
   // LI.FI needs no per-quote config; deBridge is built per-quote below with fresh native prices (to value
   // its fixFee exactly). The meta-aggregator quotes EVERY provider and the core picks the best net deal.
-  const lifi = useMemo(() => makeLifiProvider(), []); // no client-side API key (LI.FI: never expose it in the browser); free tier or a backend proxy
+  // Quote through the BACKEND proxy (/v1/lifi) — the LI.FI key stays server-side (never in the browser).
+  const lifi = useMemo(() => makeLifiProvider({ baseUrl: '/v1/lifi' }), []);
   const fromChain = chainByKey(fromKey);
   const toChain = chainByKey(toKey);
   const addressFor = (kind: ChainKind): string => (kind === 'solana' ? me.sol.address : me.evm.address);
