@@ -86,8 +86,11 @@ const COMPONENTS = {
       required: ['intentKind', 'outcome'],
     },
     AuthorizeRequest: {
+      // Only planId — the principal is ALWAYS the authenticated subject, never a client claim. The server
+      // schema (AuthorizeRequestSchema) accepts no `principalId`, so advertising one here was misleading
+      // published-contract drift (a client could think it were honored).
       type: 'object',
-      properties: { planId: { type: 'string' }, principalId: { type: 'string' } },
+      properties: { planId: { type: 'string' } },
       required: ['planId'],
     },
     Permission: {
