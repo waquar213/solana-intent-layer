@@ -605,14 +605,8 @@ function SettingsModal({ onClose, embedded }: { onClose: () => void; embedded?: 
     setNetModeState(m);
     setNetworkMode(m);
   };
-  // Mainnet is disabled in this testnet-only build — reset any previously-stored mainnet mode
-  // so the wallet is never stuck in a mode its (now disabled) toggle can't switch out of.
-  useEffect(() => {
-    if (getNetworkMode() === 'mainnet') {
-      setNetworkMode('testnet');
-      setNetModeState('testnet');
-    }
-  }, []);
+  // Mainnet is ENABLED (real funds, ADR-0055): the stored mode is honored on load — no forced reset. The
+  // per-broadcast guard (mainnet-ack + spend cap) is what protects real funds, not a network-mode lock.
   const saveCaps = (): void => {
     const p = Number(perTx);
     const d = Number(daily);
@@ -629,24 +623,20 @@ function SettingsModal({ onClose, embedded }: { onClose: () => void; embedded?: 
       <div className="set-row">
         <div className="set-row-text">
           <span className="set-row-title">Network</span>
-          <span className="set-row-sub">Testnet uses free coins. Mainnet (real funds) is coming soon — this build runs on testnets only.</span>
+          <span className="set-row-sub">Testnet uses free coins. <b>Mainnet moves REAL funds</b> — every send is guard-confirmed (mainnet acknowledgment + $1,000 spend cap).</span>
         </div>
         <div className="wl-asset-tabs set-control">
-          {(['testnet', 'mainnet'] as NetworkMode[]).map((m) => {
-            const disabled = m === 'mainnet'; // this build broadcasts on testnets only
-            return (
-              <button
-                key={m}
-                className={`wl-asset-tab ${netMode === m ? 'active' : ''}`}
-                onClick={() => (disabled ? undefined : chooseNet(m))}
-                disabled={disabled}
-                aria-pressed={netMode === m}
-                title={disabled ? 'Mainnet is coming soon — this build runs on testnets only' : undefined}
-              >
-                {m === 'testnet' ? 'Testnet' : '🔴 Mainnet · soon'}
-              </button>
-            );
-          })}
+          {(['testnet', 'mainnet'] as NetworkMode[]).map((m) => (
+            <button
+              key={m}
+              className={`wl-asset-tab ${netMode === m ? 'active' : ''}`}
+              onClick={() => chooseNet(m)}
+              aria-pressed={netMode === m}
+              title={m === 'mainnet' ? 'Mainnet moves REAL funds — every transaction is guard-confirmed' : undefined}
+            >
+              {m === 'testnet' ? 'Testnet' : '🔴 Mainnet'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -3653,6 +3643,16 @@ function BridgeView({
   const [srcTx, setSrcTx] = useState<EvmSendResult | null>(null);
   const [destTx, setDestTx] = useState<{ txid: string; explorerUrl: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Clear the bridge route + quote on a network toggle: the operator/canonical routes are testnet, so a
+  // testnet↔mainnet switch must not leave a stale route/quote/tx on screen (route-clear, ADR-0055).
+  const bridgeNetMode = useNetworkMode();
+  useEffect(() => {
+    setQuote(null);
+    setPhase('idle');
+    setSrcTx(null);
+    setDestTx(null);
+    setErr(null);
+  }, [bridgeNetMode]);
   const unlocked = isUnlocked();
   // Synchronous re-entrancy latch — `busy` is async phase state that may not flush between two fast
   // taps, so both would fire a real bridgeDeposit; on SOL/BTC (no nonce dedup) BOTH settle. This is

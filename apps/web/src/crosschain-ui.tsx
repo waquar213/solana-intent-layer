@@ -7,10 +7,11 @@
  * ⚠️ This is the wallet's highest-stakes surface: REAL mainnet funds, cross-chain. Quoting is read-only
  * and safe; executing requires the acknowledgment below AND a funded wallet + the user's signature.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { bestCrossChainQuote, makeLifiProvider, type CrossChainSwapQuote } from '@intent-wallet/providers';
 import { executeCrossChainSwapEvm } from './broadcast';
 import type { EvmSendResult } from './broadcast';
+import { getNetworkMode } from './settings';
 import type { WalletIdentity } from './wallet';
 
 // The SOURCE chain is where the wallet signs, so it MUST be a chain the wallet's registry knows (else
@@ -60,6 +61,20 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   const [result, setResult] = useState<EvmSendResult | null>(null);
 
   const lifi = useMemo(() => makeLifiProvider(), []);
+
+  // Clear the fetched route/quote whenever the network mode is toggled, so a testnet↔mainnet switch
+  // never leaves a stale quote (or a checked "real funds" acknowledgment) from the other network on screen.
+  const [netMode, setNetMode] = useState(getNetworkMode());
+  useEffect(() => {
+    const t = setInterval(() => setNetMode(getNetworkMode()), 400);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    setQuote(null);
+    setResult(null);
+    setErr(null);
+    setAck(false);
+  }, [netMode]);
 
   const getQuote = async (): Promise<void> => {
     setLoading(true);

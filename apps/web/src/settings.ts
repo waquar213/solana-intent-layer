@@ -81,11 +81,11 @@ export function setTxMode(mode: TxMode): void {
 
 // ── Network mode (Testnet / Mainnet) ──────────────────────────────────────────
 export function getNetworkMode(): NetworkMode {
-  // This build broadcasts on TESTNETS ONLY (the mainnet toggle is disabled in the UI). Clamp to
-  // 'testnet' so a 'mainnet' value persisted by a prior build can never route a real-funds tx,
-  // no matter which screen a returning user opens first. Revert to reading the setting when
-  // mainnet ships.
-  return 'testnet';
+  // Mainnet is ENABLED (real funds) — the user explicitly opted in (see docs/adr/0055). Read the stored
+  // mode. The real-funds safety layer is the per-broadcast guard (guardBroadcast in packages/chains:
+  // mainnet acknowledgment + $1,000 spend cap + recipient/poisoning checks), which applies in EVERY mode
+  // and is never removed — enabling mainnet mode does NOT weaken the gate that sits before any signature.
+  return getSettings().networkMode === 'mainnet' ? 'mainnet' : 'testnet';
 }
 export function setNetworkMode(mode: NetworkMode): void {
   save({ networkMode: mode === 'mainnet' ? 'mainnet' : 'testnet' });
