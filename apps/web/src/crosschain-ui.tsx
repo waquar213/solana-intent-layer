@@ -13,6 +13,10 @@ import { executeCrossChainSwapEvm } from './broadcast';
 import type { EvmSendResult } from './broadcast';
 import type { WalletIdentity } from './wallet';
 
+// The SOURCE chain is where the wallet signs, so it MUST be a chain the wallet's registry knows (else
+// executeCrossChainSwapEvm fail-closes on chainByEvmChainId). These are exactly the mainnet EVM chains
+// in packages/chains registry — keep them in sync (Avalanche etc. were removed: not in the registry, so
+// unsignable — offering them produced a quote that then threw on execute).
 const MAINNET_CHAINS: ReadonlyArray<{ id: number; label: string }> = [
   { id: 1, label: 'Ethereum' },
   { id: 42161, label: 'Arbitrum' },
@@ -20,7 +24,6 @@ const MAINNET_CHAINS: ReadonlyArray<{ id: number; label: string }> = [
   { id: 8453, label: 'Base' },
   { id: 137, label: 'Polygon' },
   { id: 56, label: 'BNB Chain' },
-  { id: 43114, label: 'Avalanche' },
 ];
 const TOKENS = ['ETH', 'USDC', 'USDT', 'DAI', 'WBTC'] as const;
 const TOKEN_DECIMALS: Record<string, number> = { USDC: 6, USDT: 6, ETH: 18, WETH: 18, DAI: 18, WBTC: 8 };
