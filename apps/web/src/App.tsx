@@ -5542,7 +5542,9 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
             ? `real 2-leg compound · convert + forward, both signed in your browser (non-custodial) → ${swapSend?.venue === 'giwa' ? 'GIWA Sepolia' : 'Solana devnet'}`
             : canSwap
             ? solanaSwap
-              ? 'real AMM swap · quote + signature in your browser (non-custodial) → Solana devnet'
+              ? onMainnet
+                ? 'real aggregator swap · quote + signature in your browser (non-custodial) → Solana mainnet'
+                : 'real AMM swap · quote + signature in your browser (non-custodial) → Solana devnet'
               : giwaSwap
                 ? 'real AMM swap · quote + signature in your browser (non-custodial) → GIWA Sepolia'
                 : 'real Uniswap v3 swap · quote + signature in your browser (non-custodial) → Sepolia'
