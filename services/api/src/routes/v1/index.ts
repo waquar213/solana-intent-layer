@@ -68,7 +68,11 @@ export async function registerV1Routes(app: FastifyInstance, opts: V1RouteOption
   const publicFanout = { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } };
   const EVM_RE = /^0x[0-9a-fA-F]{40}$/u;
   const SOL_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/u;
-  const BTC_RE = /^(bc1[a-z0-9]{25,87}|tb1[a-z0-9]{25,87}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|[mn2][a-km-zA-HJ-NP-Z1-9]{25,39})$/u;
+  // MAINNET Bitcoin only — the portfolio prices real mainnet holdings and makeBtcHoldings (btc.ts) is
+  // mainnet-only, so it REJECTS a testnet address (tb1…/m/n/2…). Accepting those here let them past the
+  // shape check and surface as a 500 (a false 5xx alert) — the exact "clean 400, not a 500" this validates
+  // against. Kept in lockstep with btc.ts's BTC_ADDRESS so route + provider agree on what's valid.
+  const BTC_RE = /^(bc1[a-z0-9]{20,90}|[13][a-km-zA-HJ-NP-Z1-9]{25,39})$/u;
 
   // Public ENS resolution — GET /v1/resolve/ens?name=vitalik.eth → { name, address|null }.
   if (opts.resolveEns) {

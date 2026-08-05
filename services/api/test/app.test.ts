@@ -10,6 +10,7 @@ import { nullLogger } from '@intent-wallet/observability';
 import { InMemoryThreatIntel, RiskEngine } from '@intent-wallet/risk';
 import { createDemoExecutor, createWalletRuntime, type Holding } from '@intent-wallet/runtime';
 import { buildApp } from '../src/app.js';
+import type { BalancesReader } from '../src/balances.js';
 import { deriveDemoIdentity } from '../src/dev-identity.js';
 import { makeAuthGuard, rejectingVerifier } from '../src/plugins/auth-guard.js';
 
@@ -306,5 +307,46 @@ describe('auth guard skeleton (fail-closed)', () => {
     });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+});
+
+describe('POST /v1/portfolio/balances — address shape validation', () => {
+  // The route validates address shapes up front so a bad input is a clean 400, not a 500. The BTC holdings
+  // provider (btc.ts) is MAINNET-only and rejects a testnet address, so the route MUST reject tb1…/m/n/2…
+  // itself rather than let it reach the provider and surface as an unhandled 500 (regression: BTC_RE once
+  // accepted testnet forms → a false 5xx alert on the route's own "clean 400" contract).
+  const stubBalances: BalancesReader = () =>
+    Promise.resolve({
+      holdings: [],
+      totalValueMicros: '0',
+      byEcosystem: { evm: '0', bitcoin: '0', solana: '0' },
+      unavailable: [],
+      unpricedSymbols: [],
+    });
+  let balApp: FastifyInstance;
+  beforeAll(async () => {
+    balApp = await buildApp({ config: loadConfig({}), logger: nullLogger, balances: stubBalances });
+  });
+  afterAll(async () => {
+    await balApp.close();
+  });
+
+  it('rejects a TESTNET BTC address with a clean 400 problem document (never a 500)', async () => {
+    const res = await balApp.inject({
+      method: 'POST',
+      url: '/v1/portfolio/balances',
+      payload: { btc: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.headers['content-type']).toContain('application/problem+json');
+  });
+
+  it('accepts a valid MAINNET BTC address (reaches the reader → 200, not a 400)', async () => {
+    const res = await balApp.inject({
+      method: 'POST',
+      url: '/v1/portfolio/balances',
+      payload: { btc: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4' },
+    });
+    expect(res.statusCode).toBe(200);
   });
 });
