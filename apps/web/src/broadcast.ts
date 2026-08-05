@@ -1343,6 +1343,16 @@ export function bridgeRouteDeliverable(route: {
   }
   if (!from || !to) return { ok: false, reason: `Unknown bridge chain: ${route.fromId} → ${route.toId}.` };
   if (from.id === to.id) return { ok: false, reason: `${from.label} → ${to.label} is the same chain — that's a swap, not a bridge. Use Swap.` };
+  // The operator relayer (services/relayer) has NO Bitcoin support — it never scans, releases, or
+  // REFUNDS a BTC leg (its CHAINS map is sepolia/giwa/solana; decodeMemo returns null for `BRDG:bitcoin:…`).
+  // So a Bitcoin route would deposit on-chain and then strand PERMANENTLY — not even refundable — the exact
+  // silent loss this subsystem exists to prevent. Refuse it (fail-closed) until the relayer can service BTC.
+  if (from.kind === 'bitcoin' || to.kind === 'bitcoin') {
+    return {
+      ok: false,
+      reason: `Bitcoin bridge routes aren't deliverable yet — the operator relayer has no Bitcoin support, so a deposit would strand (and can't even be refunded). Use an EVM or Solana route.`,
+    };
+  }
   // Never cross realism (testnet↔mainnet). Structural guard from packages/chains, keyed on the
   // registry `testnet` flag — a devnet↔mainnet route would move real value against valueless test funds.
   const realism = checkSameRealism(bridgeRegistryId(from), bridgeRegistryId(to));
