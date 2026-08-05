@@ -4956,6 +4956,17 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   };
   // The plan's known USD notional (null when the plan didn't price it) — feeds the spend caps.
   const usdVal = plan.quote?.youSend?.valueMicros ? Number(plan.quote.youSend.valueMicros) / 1e6 : null;
+  // The real-funds confirm dialog covers BOTH a mainnet transfer (`real`) AND a mainnet aggregator swap
+  // (canSwap && onMainnet && solanaSwap — where `real` is null). Without the swap case the dialog rendered
+  // nothing for a swap: execute() set mainnetAsk=true but `{mainnetAsk && real}` was false, so "Sign &
+  // execute" was a silent no-op and the mainnet chat swap could never run. mnUsd/mnOverCap drive the same
+  // tier-2 high-value gate for whichever kind is being confirmed.
+  const mainnetSwapConfirm = canSwap && onMainnet && solanaSwap;
+  const swapUsd = aggQuote && aggQuote.toValueMicros !== null ? Number(aggQuote.toValueMicros) / 1e6 : undefined;
+  const mnUsd: number | undefined = real ? real.amountUsd : mainnetSwapConfirm ? swapUsd : undefined;
+  const mnOverCap = mnUsd === undefined || mnUsd > 1000;
+  const aggName = aggQuote?.tool ?? aggQuote?.providerId ?? 'the aggregator';
+  const swapFromDisplay = swap ? `${fmtMinBase(swap.amountInBase, swap.fromSym.toUpperCase() === 'SOL' ? 9 : 6)} ${swap.fromSym}` : '';
   const [mainnetAsk, setMainnetAsk] = useState(false); // real-funds confirm dialog open
   const [hvAck, setHvAck] = useState(false); // high-value (> $1k cap) acknowledgement
   // In-flight latch: a SYNCHRONOUS guard so a double-click (before React re-renders the
@@ -5555,24 +5566,35 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
         )}
       </div>
 
-      {mainnetAsk && real && (
+      {mainnetAsk && (real || mainnetSwapConfirm) && (
         <div className="mn-confirm" role="alertdialog" aria-label="Confirm real mainnet transaction">
           <p className="mn-h">⚠️ Real mainnet transaction — this moves REAL funds</p>
           <p className="mn-lead">
-            {/* Per-asset decimals + the plan's own chain label — a SOL mainnet send has 9 decimals and settles
-                on Solana, not 18/Ethereum. The old `Number(amountBase)/1e18` + hardcoded "Ethereum mainnet"
-                showed 0.1 SOL as "0.0000000001 SOL on Ethereum mainnet" — a lie on the last screen before real
-                funds move. fmtMinBase is pure base-unit string math (no float). */}
-            Sending <b>{fmtMinBase(real.amountBase, NATIVE_DECIMALS[real.asset] ?? 18)} {real.asset}</b> on <b>{real.chainLabel}</b> to{' '}
-            <code className="mn-addr">{real.to}</code>
-            {real.amountUsd !== undefined && <> · ≈ <b>${real.amountUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b></>}. It is
-            signed on your device and cannot be undone.
+            {real ? (
+              <>
+                {/* Per-asset decimals + the plan's own chain label — a SOL mainnet send has 9 decimals and
+                    settles on Solana, not 18/Ethereum. fmtMinBase is pure base-unit string math (no float). */}
+                Sending <b>{fmtMinBase(real.amountBase, NATIVE_DECIMALS[real.asset] ?? 18)} {real.asset}</b> on <b>{real.chainLabel}</b> to{' '}
+                <code className="mn-addr">{real.to}</code>
+                {real.amountUsd !== undefined && <> · ≈ <b>${real.amountUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b></>}. It is
+                signed on your device and cannot be undone.
+              </>
+            ) : (
+              <>
+                {/* Mainnet aggregator swap — `real` is null. Show the input, the honest guaranteed floor
+                    (minOutDisplay, now equal to LI.FI's baked-in slippage), the route, and the USD. */}
+                Swapping <b>{swapFromDisplay}</b> for at least <b>{minOutDisplay ?? '—'} {swapQuote?.symbolOut ?? swap?.toSym ?? ''}</b> on{' '}
+                <b>Solana mainnet</b> via <b>{aggName}</b>
+                {mnUsd !== undefined && <> · ≈ <b>${mnUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b></>}. It is
+                signed on your device and cannot be undone.
+              </>
+            )}
           </p>
-          {(real.amountUsd === undefined || real.amountUsd > 1000) && (
+          {mnOverCap && (
             <label className="mn-hv">
               <input type="checkbox" checked={hvAck} onChange={(e) => setHvAck(e.target.checked)} />{' '}
-              {real.amountUsd === undefined
-                ? 'This transfer is unpriced — I confirm sending it anyway (treated as a high-value transaction).'
+              {mnUsd === undefined
+                ? 'This is unpriced — I confirm proceeding anyway (treated as a high-value transaction).'
                 : 'I understand this exceeds the $1,000 mainnet spend cap.'}
             </label>
           )}
@@ -5580,7 +5602,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
             <button
               className="btn primary wl-danger-btn"
               onClick={() => void runExecute(hvAck)}
-              disabled={(real.amountUsd === undefined || real.amountUsd > 1000) && !hvAck}
+              disabled={mnOverCap && !hvAck}
             >
               Confirm &amp; sign real-funds transaction
             </button>
