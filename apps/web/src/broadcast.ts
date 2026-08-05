@@ -580,6 +580,14 @@ export async function executeCrossChainSwapEvm(opts: CrossChainSwapExecInput): P
   // value is only the small native fee — so this native bound is for native sources only.) Fail-closed.
   if (!opts.fromTokenAddress) {
     const intended = BigInt(opts.approvalAmountBase || '0');
+    // Fail CLOSED: a native source's tx.value IS the funds spent, so we MUST have the reviewed input amount
+    // to bound it against. Without a positive `intended` the 4× check below is inert — we could not tell an
+    // inflated value from a legitimate one — so refuse rather than sign an UNBOUNDED native amount from an
+    // opaque route. (Guard doctrine: block what we can't positively verify. The shipping caller always
+    // supplies approvalAmountBase, so this is defense-in-depth against a future/again caller that doesn't.)
+    if (value > 0n && intended <= 0n) {
+      throw new Error('Cannot verify this route: the native input amount to bound its value against is missing. Re-quote and try again — nothing was signed.');
+    }
     if (intended > 0n && value > intended * 4n) {
       throw new Error("Refusing this route: its native value is more than 4× the amount you entered — the provider transaction doesn't match your quote. Re-quote and try again.");
     }
