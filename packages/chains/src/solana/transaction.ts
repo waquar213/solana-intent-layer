@@ -115,3 +115,40 @@ export function assembleSolTransaction(message: Uint8Array, signature: Uint8Arra
   if (signature.length !== 64) throw new Error('signature must be 64 bytes');
   return base64.encode(concat(encodeShortVec(1), signature, message));
 }
+
+/** Decode a Solana short-vec (compact-u16) at `offset`; returns the value + bytes consumed. Inverse of
+ *  encodeShortVec. Throws on a truncated buffer or an over-long (> u16) encoding. */
+export function decodeShortVec(bytes: Uint8Array, offset = 0): { value: number; bytesRead: number } {
+  let value = 0;
+  let shift = 0;
+  let i = offset;
+  for (;;) {
+    if (i >= bytes.length) throw new Error('short-vec: unexpected end of buffer');
+    const byte = bytes[i]!;
+    value |= (byte & 0x7f) << shift;
+    i += 1;
+    if ((byte & 0x80) === 0) break;
+    shift += 7;
+    if (shift > 14) throw new Error('short-vec: length exceeds u16'); // compact-u16 is at most 3 bytes
+  }
+  return { value: value >>> 0, bytesRead: i - offset };
+}
+
+/**
+ * Extract the SIGNABLE message from an aggregator-built, UNSIGNED Solana wire transaction (base64).
+ * Wire layout: [shortvec(numSignatures)] [numSignatures × 64B signature slots] [message]. This wallet
+ * holds only the fee payer's key (Solana's sole/first required signer), so a route that needs MORE than
+ * one signature cannot be completed here and is REFUSED (fail-closed). Returns the raw message bytes to
+ * sign; `assembleSolTransaction(message, sig)` reconstitutes the wire tx. Byte-exact — any deviation is
+ * rejected by the node. The message is treated as opaque (works for legacy AND v0 versioned messages).
+ */
+export function extractSolSignableMessage(wireBase64: string): Uint8Array {
+  const wire = base64.decode(wireBase64.trim());
+  const { value: numSigs, bytesRead } = decodeShortVec(wire, 0);
+  if (numSigs !== 1) {
+    throw new Error(`Solana route needs ${numSigs} signature(s); this wallet can only sign as the sole fee payer.`);
+  }
+  const msgStart = bytesRead + numSigs * 64;
+  if (wire.length <= msgStart) throw new Error('Solana wire transaction is truncated (no message).');
+  return wire.slice(msgStart);
+}

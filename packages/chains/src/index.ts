@@ -40,6 +40,8 @@ export { SolanaAdapter } from './solana/adapter.js';
 export {
   buildSolTransferMessage,
   assembleSolTransaction,
+  decodeShortVec,
+  extractSolSignableMessage,
   encodeShortVec,
   SYSTEM_PROGRAM_ID,
   type SolTransfer,

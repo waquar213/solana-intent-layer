@@ -4,33 +4,50 @@
  * ETA, and the underlying route. Execution is NON-CUSTODIAL and gated behind an explicit mainnet, real-
  * funds acknowledgment — the device signs; the aggregator only proposes; the guard verifies.
  *
+ * Home-chain first: SOLANA is offered as a source AND destination (LI.FI routes SOL/SPL ⇄ EVM via Mayan
+ * etc.). Whichever chain is the SOURCE decides which key signs — a Solana source signs with the ed25519
+ * key (executeCrossChainSwapSolana); an EVM source signs an EIP-1559 tx (executeCrossChainSwapEvm).
+ *
  * ⚠️ This is the wallet's highest-stakes surface: REAL mainnet funds, cross-chain. Quoting is read-only
  * and safe; executing requires the acknowledgment below AND a funded wallet + the user's signature.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { bestCrossChainQuote, makeLifiProvider, type CrossChainSwapQuote } from '@intent-wallet/providers';
-import { executeCrossChainSwapEvm } from './broadcast';
+import { executeCrossChainSwapEvm, executeCrossChainSwapSolana } from './broadcast';
 import type { EvmSendResult } from './broadcast';
 import { getNetworkMode } from './settings';
 import type { WalletIdentity } from './wallet';
 
-// The SOURCE chain is where the wallet signs, so it MUST be a chain the wallet's registry knows (else
-// executeCrossChainSwapEvm fail-closes on chainByEvmChainId). These are exactly the mainnet EVM chains
-// in packages/chains registry — keep them in sync (Avalanche etc. were removed: not in the registry, so
-// unsignable — offering them produced a quote that then threw on execute).
-const MAINNET_CHAINS: ReadonlyArray<{ id: number; label: string }> = [
-  { id: 1, label: 'Ethereum' },
-  { id: 42161, label: 'Arbitrum' },
-  { id: 10, label: 'Optimism' },
-  { id: 8453, label: 'Base' },
-  { id: 137, label: 'Polygon' },
-  { id: 56, label: 'BNB Chain' },
+type ChainKind = 'evm' | 'solana';
+interface SwapChain {
+  key: string;
+  label: string;
+  canonical: string;
+  kind: ChainKind;
+}
+
+// The SOURCE chain is where the wallet signs, so it MUST be a chain the wallet's registry knows (else the
+// executor fail-closes). Solana is the home chain and leads the list; the rest are exactly the mainnet EVM
+// chains in packages/chains registry — keep them in sync (Avalanche etc. were removed: not in the registry,
+// so unsignable — offering them produced a quote that then threw on execute).
+const CHAINS: ReadonlyArray<SwapChain> = [
+  { key: 'solana', label: '◎ Solana', canonical: 'solana:mainnet', kind: 'solana' },
+  { key: '1', label: 'Ethereum', canonical: 'eip155:1', kind: 'evm' },
+  { key: '42161', label: 'Arbitrum', canonical: 'eip155:42161', kind: 'evm' },
+  { key: '10', label: 'Optimism', canonical: 'eip155:10', kind: 'evm' },
+  { key: '8453', label: 'Base', canonical: 'eip155:8453', kind: 'evm' },
+  { key: '137', label: 'Polygon', canonical: 'eip155:137', kind: 'evm' },
+  { key: '56', label: 'BNB Chain', canonical: 'eip155:56', kind: 'evm' },
 ];
-const TOKENS = ['ETH', 'USDC', 'USDT', 'DAI', 'WBTC'] as const;
-const TOKEN_DECIMALS: Record<string, number> = { USDC: 6, USDT: 6, ETH: 18, WETH: 18, DAI: 18, WBTC: 8 };
+// Token menus differ by ecosystem — SOL is native only on Solana; ETH/WBTC/DAI only on EVM. USDC/USDT
+// bridge either way. (Symbols map to real mainnet tokens inside LI.FI.)
+const TOKENS_BY_KIND: Record<ChainKind, readonly string[]> = {
+  solana: ['SOL', 'USDC', 'USDT'],
+  evm: ['ETH', 'USDC', 'USDT', 'DAI', 'WBTC'],
+};
+const TOKEN_DECIMALS: Record<string, number> = { USDC: 6, USDT: 6, ETH: 18, WETH: 18, DAI: 18, WBTC: 8, SOL: 9 };
 const decimalsFor = (sym: string): number => TOKEN_DECIMALS[sym.toUpperCase()] ?? 18;
-const canonical = (evmId: number): string => `eip155:${evmId}`;
-const labelFor = (id: number): string => MAINNET_CHAINS.find((c) => c.id === id)?.label ?? String(id);
+const chainByKey = (key: string): SwapChain => CHAINS.find((c) => c.key === key) ?? CHAINS[0]!;
 
 function toBase(amount: string, decimals: number): bigint {
   const [w = '0', f = ''] = amount.trim().split('.');
@@ -46,13 +63,14 @@ function fmtBase(base: bigint, decimals: number): string {
 const usd = (micros: bigint | null): string => (micros === null ? '—' : `$${(Number(micros) / 1e6).toFixed(2)}`);
 
 type RawEvmTx = { chainId?: number; to?: string; data?: string; value?: string; gasLimit?: string };
+type RawSolTx = { data?: string };
 
 export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element {
-  const [fromChain, setFromChain] = useState(42161);
-  const [toChain, setToChain] = useState(10);
-  const [fromToken, setFromToken] = useState('USDC');
+  const [fromKey, setFromKey] = useState('solana'); // home chain leads
+  const [toKey, setToKey] = useState('42161'); // Arbitrum
+  const [fromToken, setFromToken] = useState('SOL');
   const [toToken, setToToken] = useState('ETH');
-  const [amount, setAmount] = useState('100');
+  const [amount, setAmount] = useState('1');
   const [quote, setQuote] = useState<CrossChainSwapQuote | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -61,9 +79,25 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   const [result, setResult] = useState<EvmSendResult | null>(null);
 
   const lifi = useMemo(() => makeLifiProvider(), []);
+  const fromChain = chainByKey(fromKey);
+  const toChain = chainByKey(toKey);
+  const addressFor = (kind: ChainKind): string => (kind === 'solana' ? me.sol.address : me.evm.address);
 
-  // Clear the fetched route/quote whenever the network mode is toggled, so a testnet↔mainnet switch
-  // never leaves a stale quote (or a checked "real funds" acknowledgment) from the other network on screen.
+  // Switching a chain's ecosystem can invalidate the selected token (SOL on an EVM chain, ETH on Solana) —
+  // coerce to the first valid token for the new ecosystem at change time.
+  const onFromChain = (key: string): void => {
+    setFromKey(key);
+    const toks = TOKENS_BY_KIND[chainByKey(key).kind];
+    if (!toks.includes(fromToken)) setFromToken(toks[0]!);
+  };
+  const onToChain = (key: string): void => {
+    setToKey(key);
+    const toks = TOKENS_BY_KIND[chainByKey(key).kind];
+    if (!toks.includes(toToken)) setToToken(toks[0]!);
+  };
+
+  // Clear the fetched route/quote whenever the network mode is toggled, so a testnet↔mainnet switch never
+  // leaves a stale quote (or a checked "real funds" acknowledgment) from the other network on screen.
   const [netMode, setNetMode] = useState(getNetworkMode());
   useEffect(() => {
     const t = setInterval(() => setNetMode(getNetworkMode()), 400);
@@ -81,16 +115,21 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     setErr(null);
     setQuote(null);
     setResult(null);
+    setAck(false);
     try {
       const dec = decimalsFor(fromToken);
       const q = await lifi.quote({
-        fromChainId: canonical(fromChain),
-        toChainId: canonical(toChain),
+        fromChainId: fromChain.canonical,
+        toChainId: toChain.canonical,
         fromToken,
         toToken,
         amountInBase: toBase(amount, dec),
         fromDecimals: dec,
-        fromAddress: me.evm.address,
+        fromAddress: addressFor(fromChain.kind),
+        // The receiver on the DEST chain is this same wallet, but its address form differs by ecosystem
+        // (base58 for Solana, 0x… for EVM) — pass it explicitly so a SOL→EVM route pays out to the EVM
+        // address, not the (wrong-ecosystem) source address LI.FI would otherwise default to.
+        toAddress: addressFor(toChain.kind),
         slippageBps: 50,
       });
       // One provider today; the registry + bestCrossChainQuote compare N once deBridge/etc. are added.
@@ -104,33 +143,37 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
 
   const execute = async (): Promise<void> => {
     const ex = quote?.execution;
-    if (!ex || ex.ecosystem !== 'evm') {
-      setErr('This route has no executable EVM transaction (Solana source execution is a later step).');
-      return;
-    }
-    const raw = ex.raw as RawEvmTx;
-    if (!raw.to || !raw.data || raw.chainId === undefined) {
-      setErr('Malformed route transaction from the provider.');
+    if (!ex) {
+      setErr('This route has no executable transaction.');
       return;
     }
     setExecuting(true);
     setErr(null);
     try {
-      const dec = decimalsFor(fromToken);
       const valueUsd = quote && quote.toValueMicros !== null ? Number(quote.toValueMicros) / 1e6 : undefined;
-      const r = await executeCrossChainSwapEvm({
-        evmChainId: raw.chainId,
-        to: raw.to,
-        data: raw.data,
-        value: raw.value ?? '0x0',
-        ...(raw.gasLimit ? { gasLimit: raw.gasLimit } : {}),
-        ...(ex.fromTokenAddress ? { fromTokenAddress: ex.fromTokenAddress } : {}),
-        ...(ex.approvalSpender ? { approvalSpender: ex.approvalSpender } : {}),
-        approvalAmountBase: toBase(amount, dec).toString(),
-        ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}),
-        // Explicit real-funds acknowledgment — the guard blocks a mainnet broadcast without it.
-        guard: { acknowledgeMainnet: true, acknowledgeHighValue: true, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}) },
-      });
+      const guard = { acknowledgeMainnet: true, acknowledgeHighValue: true, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}) };
+      let r: EvmSendResult;
+      if (ex.ecosystem === 'solana') {
+        const data = (ex.raw as RawSolTx).data;
+        if (!data) throw new Error('Malformed Solana route transaction from the provider.');
+        r = await executeCrossChainSwapSolana({ data, ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}), guard });
+      } else {
+        const raw = ex.raw as RawEvmTx;
+        if (!raw.to || !raw.data || raw.chainId === undefined) throw new Error('Malformed route transaction from the provider.');
+        const dec = decimalsFor(fromToken);
+        r = await executeCrossChainSwapEvm({
+          evmChainId: raw.chainId,
+          to: raw.to,
+          data: raw.data,
+          value: raw.value ?? '0x0',
+          ...(raw.gasLimit ? { gasLimit: raw.gasLimit } : {}),
+          ...(ex.fromTokenAddress ? { fromTokenAddress: ex.fromTokenAddress } : {}),
+          ...(ex.approvalSpender ? { approvalSpender: ex.approvalSpender } : {}),
+          approvalAmountBase: toBase(amount, dec).toString(),
+          ...(valueUsd !== undefined ? { amountUsd: valueUsd } : {}),
+          guard,
+        });
+      }
       setResult(r);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Swap failed');
@@ -139,7 +182,8 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     }
   };
 
-  const canExecute = quote?.execution?.ecosystem === 'evm' && ack && !executing && !result;
+  const eco = quote?.execution?.ecosystem;
+  const canExecute = (eco === 'evm' || eco === 'solana') && ack && !executing && !result;
 
   return (
     <section className="hv">
@@ -154,9 +198,9 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
         <div className="brg-leg">
           <div className="brg-leg-top">
             <span className="brg-label">From</span>
-            <select className="brg-select" value={fromChain} onChange={(e) => setFromChain(Number(e.target.value))}>
-              {MAINNET_CHAINS.map((c) => (
-                <option key={c.id} value={c.id}>
+            <select className="brg-select" value={fromKey} onChange={(e) => onFromChain(e.target.value)}>
+              {CHAINS.map((c) => (
+                <option key={c.key} value={c.key}>
                   {c.label}
                 </option>
               ))}
@@ -165,7 +209,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
           <div className="brg-amt">
             <input className="brg-amt-in" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.0" />
             <select className="brg-select" value={fromToken} onChange={(e) => setFromToken(e.target.value)}>
-              {TOKENS.map((t) => (
+              {TOKENS_BY_KIND[fromChain.kind].map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
@@ -177,9 +221,9 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
         <div className="brg-leg">
           <div className="brg-leg-top">
             <span className="brg-label">To</span>
-            <select className="brg-select" value={toChain} onChange={(e) => setToChain(Number(e.target.value))}>
-              {MAINNET_CHAINS.map((c) => (
-                <option key={c.id} value={c.id}>
+            <select className="brg-select" value={toKey} onChange={(e) => onToChain(e.target.value)}>
+              {CHAINS.map((c) => (
+                <option key={c.key} value={c.key}>
                   {c.label}
                 </option>
               ))}
@@ -188,7 +232,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
           <div className="brg-amt receive">
             <span className="brg-recv">{quote ? fmtBase(quote.toAmountBase, quote.toDecimals) : '—'}</span>
             <select className="brg-select" value={toToken} onChange={(e) => setToToken(e.target.value)}>
-              {TOKENS.map((t) => (
+              {TOKENS_BY_KIND[toChain.kind].map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
@@ -221,7 +265,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
               </span>
             </label>
             <button className="btn primary brg-go" onClick={() => void execute()} disabled={!canExecute} type="button">
-              {executing ? 'Signing on device…' : `Swap ${fromToken} on ${labelFor(fromChain)} → ${toToken} on ${labelFor(toChain)}`}
+              {executing ? 'Signing on device…' : `Swap ${fromToken} on ${fromChain.label} → ${toToken} on ${toChain.label}`}
             </button>
           </>
         )}

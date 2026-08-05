@@ -4,12 +4,24 @@ import {
   SYSTEM_PROGRAM_ID,
   assembleSolTransaction,
   buildSolTransferMessage,
+  decodeShortVec,
+  extractSolSignableMessage,
   encodeShortVec,
 } from '../src/index.js';
 
 const from = new Uint8Array(32).fill(1); // stand-in 32-byte ed25519 pubkey
 const toAddr = base58.encode(new Uint8Array(32).fill(2));
 const blockhash = base58.encode(new Uint8Array(32).fill(3));
+
+const cat = (...parts: Uint8Array[]): Uint8Array => {
+  const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+};
 
 describe('solana short-vec (compact-u16)', () => {
   it('encodes single-byte and multi-byte lengths per spec', () => {
@@ -79,5 +91,54 @@ describe('solana transfer message', () => {
     expect(() => buildSolTransferMessage({ fromPubkey: from, toAddress: base58.encode(new Uint8Array(10)), lamports: 1n, recentBlockhash: blockhash })).toThrow(/32-byte/i);
     const msg = buildSolTransferMessage({ fromPubkey: from, toAddress: toAddr, lamports: 1n, recentBlockhash: blockhash });
     expect(() => assembleSolTransaction(msg, new Uint8Array(10))).toThrow(/64 bytes/i);
+  });
+});
+
+describe('solana short-vec decode (inverse of encodeShortVec)', () => {
+  it('round-trips single- and multi-byte lengths', () => {
+    for (const n of [0, 1, 3, 127, 128, 255, 16383, 16384, 65535]) {
+      const { value, bytesRead } = decodeShortVec(encodeShortVec(n));
+      expect(value).toBe(n);
+      expect(bytesRead).toBe(encodeShortVec(n).length);
+    }
+  });
+  it('decodes at a non-zero offset and reports bytes consumed', () => {
+    const buf = cat(Uint8Array.from([0xff]), encodeShortVec(128)); // one junk byte, then 128
+    const { value, bytesRead } = decodeShortVec(buf, 1);
+    expect(value).toBe(128);
+    expect(bytesRead).toBe(2);
+  });
+  it('throws on a truncated continuation and on an over-long (> u16) encoding', () => {
+    expect(() => decodeShortVec(Uint8Array.from([0x80]))).toThrow(/end of buffer/i); // continuation bit, no next byte
+    expect(() => decodeShortVec(Uint8Array.from([0x80, 0x80, 0x80, 0x80]))).toThrow(/u16/i);
+  });
+});
+
+describe('extractSolSignableMessage (aggregator-built unsigned Solana tx)', () => {
+  // An aggregator (LI.FI/Mayan) returns a fully-built, UNSIGNED tx: [shortvec(1)][64B empty sig][message].
+  const message = buildSolTransferMessage({ fromPubkey: from, toAddress: toAddr, lamports: 5n, recentBlockhash: blockhash });
+
+  it('extracts the exact message from a single-signer wire tx', () => {
+    const unsigned = base64.encode(cat(encodeShortVec(1), new Uint8Array(64), message));
+    expect([...extractSolSignableMessage(unsigned)]).toEqual([...message]);
+  });
+
+  it('round-trips: extract → sign → assemble reconstructs [1][sig][message]', () => {
+    const unsigned = base64.encode(cat(encodeShortVec(1), new Uint8Array(64), message));
+    const sig = new Uint8Array(64).fill(9);
+    const wire = base64.decode(assembleSolTransaction(extractSolSignableMessage(unsigned), sig));
+    expect(wire[0]).toBe(1);
+    expect([...wire.slice(1, 65)]).toEqual([...sig]);
+    expect([...wire.slice(65)]).toEqual([...message]);
+  });
+
+  it('REFUSES a multi-signer route (fail-closed: we only hold the fee payer key)', () => {
+    const twoSig = base64.encode(cat(encodeShortVec(2), new Uint8Array(128), message));
+    expect(() => extractSolSignableMessage(twoSig)).toThrow(/2 signature/i);
+  });
+
+  it('throws on a truncated wire tx with no message', () => {
+    const noMsg = base64.encode(cat(encodeShortVec(1), new Uint8Array(64)));
+    expect(() => extractSolSignableMessage(noMsg)).toThrow(/truncated/i);
   });
 });

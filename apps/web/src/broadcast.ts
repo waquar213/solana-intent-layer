@@ -18,6 +18,7 @@ import {
   checkSameRealism,
   checkEvmRecipient,
   assembleSolTransaction,
+  extractSolSignableMessage,
   buildBtcTransfer,
   buildSolTransferMessage,
   buildSplTransferMessage,
@@ -64,6 +65,9 @@ import { knownGoodAddresses } from './recents';
 export const DEFAULT_SEPOLIA_RPC = import.meta.env.VITE_SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com';
 /** The Solana devnet RPC (public default; override with a keyed node for reliable sendTransaction). */
 export const DEFAULT_DEVNET_RPC = import.meta.env.VITE_SOLANA_DEVNET_RPC || 'https://api.devnet.solana.com';
+/** The Solana MAINNET RPC (the public node rate-limits + often blocks browser sendTransaction — set a
+ *  keyed node, e.g. Helius, in VITE_SOLANA_MAINNET_RPC for real cross-chain swaps to broadcast). */
+export const DEFAULT_SOLANA_MAINNET_RPC = import.meta.env.VITE_SOLANA_MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
 /** A Bitcoin testnet esplora REST API (public default). */
 export const DEFAULT_BTC_TESTNET_REST = import.meta.env.VITE_BTC_TESTNET_REST || 'https://blockstream.info/testnet/api';
 /** GIWA Sepolia RPC (Dunamu/Upbit OP Stack L2 testnet, chainId 91342). Override with your own keyed node. */
@@ -543,6 +547,48 @@ export async function executeCrossChainSwapEvm(opts: CrossChainSwapExecInput): P
   const swapTx: Eip1559Transaction = { chainId: info.evmChainId, nonce, ...gasPrice, gasLimit, to: opts.to, value, data: opts.data };
   const { txid } = await adapter.broadcastRawTransaction(signEvmTransaction(swapTx).raw); // in-browser, user's key
   return { txid, explorerUrl: `${info.explorerUrl}/tx/${txid}` };
+}
+
+export interface CrossChainSwapSolanaExecInput {
+  /** The aggregator's Solana route transaction: a base64-serialized, UNSIGNED single-signer transaction
+   *  whose fee payer is THIS wallet (the aggregator built it against the wallet's `fromAddress`). */
+  data: string;
+  /** The route's USD value, for the mainnet spend-cap guard. */
+  amountUsd?: number;
+  rpcUrl?: string;
+  guard?: GuardAck;
+}
+
+// The SOLANA sibling of executeCrossChainSwapEvm: sign + broadcast the winning cross-chain-swap route
+// when the SOURCE chain is Solana (LI.FI routes SOL/SPL → any chain via Mayan etc.). The aggregator
+// BUILDS the unsigned Solana tx; deterministic guardrails VERIFY; the device SIGNATURE disposes — same
+// doctrine as the EVM path. Non-custodial: the ed25519 key never leaves the browser. Fail-closed: a
+// multi-signer route (we hold only the fee payer key) is refused inside extractSolSignableMessage.
+//
+// ⚠️ Real mainnet value. Gated behind the mainnet-ack + spend-cap guard and only ever run from an
+// explicit, informed UI confirmation (never auto). SECURITY REVIEW pending per ADR-0055.
+export async function executeCrossChainSwapSolana(opts: CrossChainSwapSolanaExecInput): Promise<EvmSendResult> {
+  const me = currentIdentity();
+  if (!me) throw new Error('Unlock your wallet first.');
+
+  // Guardrails BEFORE signing: mainnet acknowledgment + spend cap. The recipient is embedded in the
+  // aggregator's opaque tx, so we guard on the wallet's OWN Solana address (a known, non-empty value) —
+  // the mainnet-ack + $1,000 cap still bind; a base58 Solana address is not EIP-55 so the checksum branch
+  // is a no-op. Fail-closed — nothing is signed if the guard blocks.
+  const ack: GuardAck = { ...(opts.guard ?? {}), ...(opts.amountUsd !== undefined ? { amountUsd: opts.amountUsd } : {}) };
+  assertBroadcastAllowed(guardInput('solana', me.sol.address, ack));
+
+  // The aggregator returns a fully-built, UNSIGNED Solana tx (fee payer = this wallet). Extract the
+  // signable message (refuses any multi-signer route), sign it ON-DEVICE, reassemble, broadcast. We do
+  // NOT rebuild the message or re-fetch a blockhash — the aggregator's route is signed exactly as built
+  // (a stale blockhash simply fails the broadcast, prompting a re-quote; funds never move on failure).
+  const message = extractSolSignableMessage(opts.data);
+  const sig = signSolanaMessage(message); // in-browser, with the user's key
+  const rpcUrl = opts.rpcUrl?.trim() || DEFAULT_SOLANA_MAINNET_RPC;
+  const pool = new ProviderPool([new HttpJsonRpcTransport(rpcUrl)]);
+  const adapter = new SolanaAdapter('solana', pool);
+  const { txid } = await adapter.broadcastRawTransaction(assembleSolTransaction(message, sig));
+  return { txid, explorerUrl: `https://explorer.solana.com/tx/${txid}` };
 }
 
 /**
