@@ -1796,6 +1796,11 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
       return;
     }
     setEnsResolving(true);
+    // Drop any address resolved for a PREVIOUS name immediately — otherwise, while this new name debounces +
+    // resolves, `effectiveTo` still points at the old `.eth`'s address and a send could be signed to the
+    // wrong party while the field reads the new name ("⏳ Resolving ENS…"). Nulling it fails closed: the
+    // recipient is unresolved until this name's own lookup lands.
+    setEnsAddress(null);
     let cancelled = false;
     const timer = setTimeout(() => {
       void resolveEnsName(name).then((addr) => {
@@ -3133,8 +3138,8 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
                             {/* Never let a signature fire while the on-chain poisoning check is still
                                 running — the verdict could flip the recipient to blocked. Disable +
                                 say so, rather than showing an enabled "Confirm & sign" mid-check. */}
-                            <button className="btn primary" onClick={() => void doSend()} disabled={sending || hardBlocked || chainChecking}>
-                              {sending ? 'Broadcasting…' : chainChecking ? 'Checking recipient…' : hardBlocked ? 'Blocked by Sentinel' : 'Confirm & sign'}
+                            <button className="btn primary" onClick={() => void doSend()} disabled={sending || hardBlocked || chainChecking || ensResolving}>
+                              {sending ? 'Broadcasting…' : chainChecking ? 'Checking recipient…' : ensResolving ? 'Resolving ENS…' : hardBlocked ? 'Blocked by Sentinel' : 'Confirm & sign'}
                             </button>
                             <button className="wl-link" onClick={() => setReviewing(false)} disabled={sending}>
                               Back
