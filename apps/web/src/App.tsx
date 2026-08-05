@@ -2276,7 +2276,15 @@ function WalletShell({ onExit }: { onExit: () => void }): JSX.Element {
       // A 401 → the SIWE session expired/missing: clear the stale token so the SessionBar prompts
       // sign-in, and show the recoverable "Sign in to continue" message (not a generic rejected card).
       if (isSessionExpired(e)) void signOut();
-      setTurns((t) => t.map((turn, i) => (i === idx ? { q, error: e instanceof Error ? e.message : 'Something went wrong' } : turn)));
+      // Honest error state: a raw fetch/network failure means the backend (services/api) is unreachable,
+      // so say exactly that and how to fix it — never a cryptic "Something went wrong" / "Failed to fetch".
+      const msg = e instanceof Error ? e.message : '';
+      const friendly = isSessionExpired(e)
+        ? 'Your session expired — sign in and try again.'
+        : !msg || /failed to fetch|load failed|networkerror|network request failed|econnrefused|50[234]/i.test(msg)
+          ? 'The backend API is offline — start it (services/api on :8080) and try again.'
+          : msg;
+      setTurns((t) => t.map((turn, i) => (i === idx ? { q, error: friendly } : turn)));
     } finally {
       setLoading(false);
       submitInFlightRef.current = false;
