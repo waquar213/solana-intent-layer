@@ -4727,6 +4727,11 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // Solana: SOL⇄USDC swaps settle through our own on-chain solAMM (SOL⇄dUSDC), both directions.
   const solanaSwap = swap != null && isSolammPair(swap.fromSym, swap.toSym);
   const solanaSwapReverse = solanaSwap && swap != null && swap.fromSym !== 'SOL'; // USDC → SOL
+  // The in-chat swap/convert pools are TESTNET (solAMM on Solana devnet, the GIWA AMM on Sepolia). On MAINNET
+  // mode there is NO in-chat mainnet pool, so executing would sign a devnet/testnet tx while the user believes
+  // they're on mainnet — fail closed (below) and point to the real mainnet path (the Swap tab aggregator).
+  const onMainnet = useNetworkMode() === 'mainnet';
+  const testnetSwapOnMainnet = onMainnet && (solanaSwap || giwaSwap || swapSend != null);
   // Which curve the plan settles on — an imported single-curve account can only sign its OWN. Hoisted
   // to component scope so BOTH the manual Execute button AND the Auto-mode effect gate on it (the
   // backend planner has no knowledge of the active account, so it can return a different-curve plan
@@ -4870,6 +4875,14 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
     setMainnetAsk(false);
     setPhase('executing');
     try {
+      // Fail closed on MAINNET: the in-chat swap/convert pools are TESTNET (solAMM on Solana devnet, the GIWA
+      // AMM on Sepolia). Signing one while the user is on mainnet would broadcast a devnet/testnet tx behind a
+      // mainnet expectation — never do that. Point to the real mainnet path instead.
+      if (testnetSwapOnMainnet) {
+        throw new Error(
+          "You're on Mainnet. AI-chat swaps settle on our TESTNET pools (Solana devnet solAMM / GIWA AMM) — for a REAL mainnet swap open the Swap tab: it routes SOL · USDC · ETH across chains via LI.FI + deBridge. Nothing was signed.",
+        );
+      }
       if (canReal && real) {
         // Mainnet carries the acknowledgeMainnet ack (+ high-value ack over the $1k cap); testnet
         // passes no guard (the guard waves testnets through). Signed in-browser, broadcast for real.
@@ -5107,6 +5120,14 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
       <p className="flow-lead">{lead}</p>
       <p className="flow-reasoning">🧠 {reasoning}</p>
 
+      {testnetSwapOnMainnet && (
+        <p className="authz-deny err-line" role="note">
+          ⚠️ You're on <b>Mainnet</b>, but this in-chat swap settles on our <b>testnet</b> pool (Solana devnet
+          solAMM / GIWA AMM). For a <b>real mainnet</b> swap, open the <b>Swap</b> tab — it routes SOL · USDC ·
+          ETH across chains via LI.FI + deBridge. (Or switch to Testnet in Settings to run this in chat.)
+        </p>
+      )}
+
       <div className="stages">
         <Stage i={0} icon="✦" title="Understood your intent" state="done">
           <span className="muted">
@@ -5328,11 +5349,16 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
         <p className="muted" style={{ color: 'var(--medium)' }}>⚡ Auto paused — {autoDec.reason}. Confirm manually below.</p>
       )}
       <div className="flow-actions">
-        {phase === 'planned' && (
-          <button className="btn primary" onClick={() => void authorize()}>
-            Review &amp; authorize
-          </button>
-        )}
+        {phase === 'planned' &&
+          (testnetSwapOnMainnet ? (
+            <button className="btn primary" disabled title="Open the Swap tab for a real mainnet swap (LI.FI + deBridge)">
+              Use the Swap tab for mainnet →
+            </button>
+          ) : (
+            <button className="btn primary" onClick={() => void authorize()}>
+              Review &amp; authorize
+            </button>
+          ))}
         {phase === 'authorized' &&
           permission?.mayProceedToSign &&
           (canReal || canSwap || canSwapSend || canStake) &&
