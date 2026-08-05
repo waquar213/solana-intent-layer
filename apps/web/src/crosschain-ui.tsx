@@ -16,6 +16,7 @@ import { bestCrossChainQuote, makeLifiProvider, makeDebridgeProvider, type Cross
 import { executeCrossChainSwapEvm, executeCrossChainSwapSolana } from './broadcast';
 import type { EvmSendResult } from './broadcast';
 import { getNetworkMode } from './settings';
+import { spotUsd } from './balances';
 import type { WalletIdentity } from './wallet';
 
 type ChainKind = 'evm' | 'solana';
@@ -79,9 +80,9 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<EvmSendResult | null>(null);
 
-  // The meta-aggregator: quote EVERY top-level provider, then let the deterministic core pick the best net
-  // deal. Adding a provider is adding it to this list — nothing else changes.
-  const providers = useMemo(() => [makeLifiProvider(), makeDebridgeProvider()], []);
+  // LI.FI needs no per-quote config; deBridge is built per-quote below with fresh native prices (to value
+  // its fixFee exactly). The meta-aggregator quotes EVERY provider and the core picks the best net deal.
+  const lifi = useMemo(() => makeLifiProvider(), []);
   const fromChain = chainByKey(fromKey);
   const toChain = chainByKey(toKey);
   const addressFor = (kind: ChainKind): string => (kind === 'solana' ? me.sol.address : me.evm.address);
@@ -137,6 +138,18 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
         toAddress: addressFor(toChain.kind),
         slippageBps: 50,
       };
+      // deBridge's flat fixFee is charged in the SOURCE chain's native token; feed its USD spot so the
+      // provider prices it exactly (ETH covers our ETH-native chains, SOL the home chain; a null just
+      // makes deBridge fall back to its conservative floor). The feed is cached (60s) + fail-soft.
+      const [ethUsd, solUsd] = await Promise.all([spotUsd('ETH'), spotUsd('SOL')]);
+      const toMicros = (n: number | null): bigint | null => (n != null && Number.isFinite(n) && n > 0 ? BigInt(Math.round(n * 1e6)) : null);
+      const nativeUsdMicros = (chainId: string): bigint | null => {
+        if (chainId.startsWith('solana:')) return toMicros(solUsd);
+        // every EVM chain we offer except BNB/Polygon is ETH-native
+        if (chainId === 'eip155:1' || chainId === 'eip155:10' || chainId === 'eip155:8453' || chainId === 'eip155:42161') return toMicros(ethUsd);
+        return null; // BNB/Polygon native isn't in the ETH/SOL feed → deBridge uses its conservative floor
+      };
+      const providers = [lifi, makeDebridgeProvider({ nativeUsdMicros })];
       // Fan out to ALL providers; a provider that can't serve the route throws and is simply dropped
       // (fail-closed per provider). The deterministic core ranks the survivors by NET value and picks best.
       const settled = await Promise.allSettled(providers.map((p) => p.quote(req)));

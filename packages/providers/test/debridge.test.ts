@@ -22,10 +22,12 @@ const OK_EVM = {
 
 const OK_SOL = {
   estimation: {
+    // native SOL source (1 SOL @ $180); fixFee 0.001 SOL is priced from THIS, decimals-agnostic.
+    srcChainTokenIn: { symbol: 'SOL', amount: '1000000000', approximateUsdValue: 180 },
     dstChainTokenOut: { symbol: 'USDC', amount: '73900000', recommendedAmount: '73900000', decimals: 6, approximateUsdValue: 73.9 },
   },
   tx: { data: 'AQAAAAAAAAAAAAAAAAAAsolanaBase64==' },
-  protocolFeeApproximateUsdValue: 0.01,
+  fixFee: '1000000',
   order: { approximateFulfillmentDelay: 5 },
 };
 
@@ -58,8 +60,9 @@ describe('makeDebridgeProvider.quote', () => {
     expect(q.toDecimals).toBe(6);
     expect(q.toTokenSymbol).toBe('USDC');
     expect(q.toValueMicros).toBe(18_655_014n); // 18.655014… -> micros (truncated at 6dp)
-    // feeMicros = protocolFee ($0.007586) + the conservative EVM fixFee floor ($2.00)
-    expect(q.feeMicros).toBe(7_586n + 2_000_000n);
+    // feeMicros = the fixFee priced EXACTLY from deBridge's own native srcChainTokenIn (0.001 ETH @ the
+    // response-implied price ≈ $1.8736). protocol/taker/opex/slippage are already in the output, not here.
+    expect(q.feeMicros).toBe(1_873_616n);
     expect(q.gasMicros).toBe(0n);
     expect(q.etaSeconds).toBe(2);
     expect(q.tool).toBe('dln');
@@ -79,13 +82,24 @@ describe('makeDebridgeProvider.quote', () => {
     expect(ex.ecosystem).toBe('evm');
     expect(ex.approvalSpender).toBe('0xeF4fB24aD0916217251F553c0596F8Edc630EB66'); // the DLN source router = tx.to
     expect(ex.fromTokenAddress).toBe('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'); // USDC on Arbitrum
+    // ERC-20 source can't derive the native price from the (USDC) srcChainTokenIn and no feed was injected
+    // → the CONSERVATIVE floor ($2.00), never understated.
+    expect(q.feeMicros).toBe(2_000_000n);
+  });
+
+  it('prices the fixFee EXACTLY from the injected native feed for an ERC-20 source', async () => {
+    // 0.001 ETH fixFee @ an injected $1500/ETH = $1.50; the floor is NOT used when a feed is available.
+    const p = makeDebridgeProvider({ fetchImpl: fakeFetch(OK_EVM), nativeUsdMicros: () => 1_500_000_000n });
+    const q = await p.quote({ ...REQ_NATIVE, fromToken: 'USDC', amountInBase: 20_000_000n, fromDecimals: 6 });
+    expect(q.feeMicros).toBe(1_500_000n);
   });
 
   it('normalizes a Solana-source response as ecosystem=solana with the base64 tx, no approval', async () => {
     const p = makeDebridgeProvider({ fetchImpl: fakeFetch(OK_SOL) });
     const q = await p.quote({ ...REQ_NATIVE, fromChainId: 'solana:mainnet', fromToken: 'SOL', fromAddress: SOL_ADDR });
     expect(q.toValueMicros).toBe(73_900_000n);
-    expect(q.feeMicros).toBe(10_000n + 50_000n); // protocolFee $0.01 + Solana fixFee floor $0.05
+    // native SOL source → fixFee (0.001 SOL) priced from srcChainTokenIn (1 SOL @ $180) = $0.18, exact.
+    expect(q.feeMicros).toBe(180_000n);
     const ex = q.execution as CrossChainSwapExecution;
     expect(ex.ecosystem).toBe('solana');
     expect(ex.approvalSpender).toBeUndefined();

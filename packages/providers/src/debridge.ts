@@ -24,6 +24,10 @@ export interface DebridgeProviderOptions {
   baseUrl?: string;
   /** Optional referral code (deBridge affiliate); quotes work without it. */
   referralCode?: string;
+  /** Source-chain NATIVE-token USD price (micro-USD per 1 whole native), for pricing the fixFee EXACTLY on
+   *  an ERC-20 source (a native source is priced from deBridge's own response, no feed needed). Return null
+   *  when unknown → the provider falls back to a conservative floor. Injected so the plugin stays pure. */
+  nativeUsdMicros?: (canonicalChainId: string) => bigint | null;
   now?: () => number;
   timeoutMs?: number;
 }
@@ -61,17 +65,57 @@ const TOKEN_ADDRESSES: Record<number, Record<string, string>> = {
   },
 };
 
-// deBridge charges a flat native fixFee (~$1-2 EVM, ~cents on Solana) that isn't reflected in the quoted
-// OUTPUT and which the response doesn't price in USD. We subtract a CONSERVATIVE per-ecosystem floor so
-// deBridge is never made to look cheaper than reality (fail-closed for real money); the exact source gas
-// is estimated on-device at signing regardless. Documented in ADR-0057. Micro-USD.
-const FIXFEE_FLOOR_MICROS_EVM = 2_000_000n; // $2.00
-const FIXFEE_FLOOR_MICROS_SOL = 50_000n; // $0.05
+// deBridge charges a flat native fixFee (paid separately in tx.value; NOT reflected in the output) that
+// the response doesn't price in USD. We price it EXACTLY (see priceFixFeeMicros): from deBridge's own
+// srcChainTokenIn for a native source, else from the injected native-USD feed. Only when NEITHER is
+// available do we fall back to a CONSERVATIVE per-ecosystem floor, so deBridge is never made to look
+// cheaper than reality (fail-closed for real money). The protocol/taker/opex/slippage fees are already
+// deducted from the quoted output, so they are NOT subtracted again. ADR-0057. Micro-USD.
+const FIXFEE_FLOOR_MICROS_EVM = 2_000_000n; // $2.00 — last-resort only (native price unknown)
+const FIXFEE_FLOOR_MICROS_SOL = 50_000n; // $0.05 — last-resort only
+
+/** EVM native = 18 decimals (wei); Solana native = 9 decimals (lamports). */
+const NATIVE_WHOLE: Record<'evm' | 'solana', bigint> = { evm: 1_000_000_000_000_000_000n, solana: 1_000_000_000n };
+
+/**
+ * Price deBridge's flat native fixFee into micro-USD, EXACTLY where possible (fail-closed otherwise):
+ *  1) NATIVE source → derive from deBridge's own srcChainTokenIn: the fixFee and the input are the SAME
+ *     native token, so `fixFee * srcUsdMicros / srcAmount` is exact and decimals-agnostic.
+ *  2) else → injected native-USD price × fixFee / native-whole-unit (needs the native decimals).
+ *  3) else → conservative floor (never understates the cost).
+ */
+function priceFixFeeMicros(args: {
+  fixFeeBase: bigint;
+  ecosystem: 'evm' | 'solana';
+  srcIsNative: boolean;
+  srcAmountBase: bigint | null;
+  srcUsdMicros: bigint | null;
+  injectedNativeUsdMicros: bigint | null;
+}): bigint {
+  const { fixFeeBase, ecosystem, srcIsNative, srcAmountBase, srcUsdMicros, injectedNativeUsdMicros } = args;
+  if (fixFeeBase <= 0n) return 0n;
+  if (srcIsNative && srcUsdMicros !== null && srcAmountBase !== null && srcAmountBase > 0n) {
+    return (fixFeeBase * srcUsdMicros) / srcAmountBase;
+  }
+  if (injectedNativeUsdMicros !== null) {
+    return (fixFeeBase * injectedNativeUsdMicros) / NATIVE_WHOLE[ecosystem];
+  }
+  return ecosystem === 'solana' ? FIXFEE_FLOOR_MICROS_SOL : FIXFEE_FLOOR_MICROS_EVM;
+}
 
 type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => (typeof v === 'object' && v !== null ? (v as Json) : {});
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 const numOrStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined);
+const toBig = (v: unknown): bigint | null => {
+  const s = numOrStr(v);
+  if (s === undefined) return null;
+  try {
+    return BigInt(s);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Build a deBridge DLN cross-chain-swap provider. `quote()` calls `create-tx` (which returns BOTH the
@@ -166,7 +210,17 @@ export function makeDebridgeProvider(options: DebridgeProviderOptions = {}): Cro
             }
           : { ecosystem, raw: { data: txData } };
 
-      const feeMicros = (usdStringToMicros(numOrStr(body.protocolFeeApproximateUsdValue)) ?? 0n) + (ecosystem === 'solana' ? FIXFEE_FLOOR_MICROS_SOL : FIXFEE_FLOOR_MICROS_EVM);
+      // The only cost NOT already deducted from the quoted output is the flat native fixFee — price it
+      // into micro-USD (exact where possible). protocol/taker/opex/slippage are baked into `toValueMicros`.
+      const srcIn = obj(estimation.srcChainTokenIn);
+      const feeMicros = priceFixFeeMicros({
+        fixFeeBase: toBig(body.fixFee) ?? 0n,
+        ecosystem,
+        srcIsNative: isNativeSrc,
+        srcAmountBase: toBig(srcIn.amount),
+        srcUsdMicros: usdStringToMicros(numOrStr(srcIn.approximateUsdValue)),
+        injectedNativeUsdMicros: options.nativeUsdMicros?.(request.fromChainId) ?? null,
+      });
 
       return {
         providerId: 'debridge',

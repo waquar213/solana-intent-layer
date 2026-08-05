@@ -36,16 +36,26 @@ internal chain id `7565164`).
   `fromTokenAddress = srcToken`, and `executeCrossChainSwapEvm` approves EXACTLY the input amount (never
   unlimited). Native sources need no approval.
 
-## Fee accounting (fair ranking) and its honest limit
+## Fee accounting (fair ranking) — now priced EXACTLY
 
-`bestCrossChainQuote` ranks by NET value = `toValueMicros − gasMicros − feeMicros`. deBridge reliably
-reports the destination OUTPUT USD (the dominant term) and a tiny protocol fee, but charges a flat native
-`fixFee` (~$1–2 on EVM, cents on Solana) that the response does not price in USD, and it does not separately
-report source gas. To avoid ever making deBridge look cheaper than reality (fail-closed for real money) we
-add a **conservative per-ecosystem fixFee floor** ($2.00 EVM / $0.05 Solana) into `feeMicros` and leave
-`gasMicros = 0`. This is an intentional, documented approximation on the *cost* side; the *output* side is
-exact, both providers' outputs are shown to the user, and the real source gas is estimated on-device at
-signing regardless. A precise cross-provider fee model (native USD feed) is a follow-up.
+`bestCrossChainQuote` ranks by NET value = `toValueMicros − gasMicros − feeMicros`. deBridge's quoted
+OUTPUT already has the protocol/taker/operating-expense/slippage fees deducted, so those are captured in
+`toValueMicros` and must NOT be subtracted again (an earlier revision double-counted the protocol fee —
+fixed). The ONE cost not reflected in the output is the flat native `fixFee`, paid separately in `tx.value`.
+We price it into micro-USD **exactly**:
+
+1. **Native source** (the common case — SOL, ETH): the fixFee and the input are the SAME native token, so
+   `fixFee × srcChainTokenIn.approximateUsdValue ÷ srcChainTokenIn.amount` is exact and decimals-agnostic —
+   derived from deBridge's own response, no external feed.
+2. **ERC-20 source**: the web app injects the source chain's native USD spot (`spotUsd`, cached 60s — ETH
+   covers our ETH-native chains, SOL the home chain); `fixFee × nativeUsdMicros ÷ nativeWholeUnit`.
+3. **Neither available** (BNB/Polygon native isn't in the ETH/SOL feed, or the feed is down): a
+   **conservative per-ecosystem floor** ($2.00 EVM / $0.05 Solana) — never understates the cost.
+
+`gasMicros = 0`: deBridge doesn't separately report the source-submission gas (small on L2/Solana; the
+real value is estimated on-device at signing regardless). Both providers' outputs are shown to the user, so
+the pick is transparent. Verified live: 2 SOL → lifi 0.078810 ETH vs debridge 0.078514 ETH, fixFee priced
+exactly from the response.
 
 ## Consequences
 
