@@ -29,5 +29,6 @@ export { ProviderRegistry, type ProviderRegistryOptions } from './registry.js';
 export { ProviderError, type ProviderErrorCode } from './errors.js';
 export { bestSwapQuote, isValidSwapQuote, type QuoteValidationOptions } from './aggregate.js';
 export { makeLifiProvider, usdStringToMicros, type LifiProviderOptions, type FetchLike } from './lifi.js';
+export { makeDebridgeProvider, type DebridgeProviderOptions } from './debridge.js';
 export { bestCrossChainQuote, netValueMicros, type BestCrossChainOptions, type RankedCrossChainQuote } from './crosschain.js';
 export { RouteOptimizer, type Route, type RouteLeg, type RouteOptimizerOptions } from './route.js';

@@ -12,7 +12,7 @@
  * and safe; executing requires the acknowledgment below AND a funded wallet + the user's signature.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { bestCrossChainQuote, makeLifiProvider, type CrossChainSwapQuote } from '@intent-wallet/providers';
+import { bestCrossChainQuote, makeLifiProvider, makeDebridgeProvider, type CrossChainSwapQuote, type RankedCrossChainQuote } from '@intent-wallet/providers';
 import { executeCrossChainSwapEvm, executeCrossChainSwapSolana } from './broadcast';
 import type { EvmSendResult } from './broadcast';
 import { getNetworkMode } from './settings';
@@ -72,13 +72,16 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   const [toToken, setToToken] = useState('ETH');
   const [amount, setAmount] = useState('1');
   const [quote, setQuote] = useState<CrossChainSwapQuote | null>(null);
+  const [ranked, setRanked] = useState<readonly RankedCrossChainQuote[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<EvmSendResult | null>(null);
 
-  const lifi = useMemo(() => makeLifiProvider(), []);
+  // The meta-aggregator: quote EVERY top-level provider, then let the deterministic core pick the best net
+  // deal. Adding a provider is adding it to this list — nothing else changes.
+  const providers = useMemo(() => [makeLifiProvider(), makeDebridgeProvider()], []);
   const fromChain = chainByKey(fromKey);
   const toChain = chainByKey(toKey);
   const addressFor = (kind: ChainKind): string => (kind === 'solana' ? me.sol.address : me.evm.address);
@@ -105,6 +108,7 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
   }, []);
   useEffect(() => {
     setQuote(null);
+    setRanked([]);
     setResult(null);
     setErr(null);
     setAck(false);
@@ -114,11 +118,12 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
     setLoading(true);
     setErr(null);
     setQuote(null);
+    setRanked([]);
     setResult(null);
     setAck(false);
     try {
       const dec = decimalsFor(fromToken);
-      const q = await lifi.quote({
+      const req = {
         fromChainId: fromChain.canonical,
         toChainId: toChain.canonical,
         fromToken,
@@ -128,12 +133,21 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
         fromAddress: addressFor(fromChain.kind),
         // The receiver on the DEST chain is this same wallet, but its address form differs by ecosystem
         // (base58 for Solana, 0x… for EVM) — pass it explicitly so a SOL→EVM route pays out to the EVM
-        // address, not the (wrong-ecosystem) source address LI.FI would otherwise default to.
+        // address, not the (wrong-ecosystem) source address a provider would otherwise default to.
         toAddress: addressFor(toChain.kind),
         slippageBps: 50,
-      });
-      // One provider today; the registry + bestCrossChainQuote compare N once deBridge/etc. are added.
-      setQuote(bestCrossChainQuote([q]).best);
+      };
+      // Fan out to ALL providers; a provider that can't serve the route throws and is simply dropped
+      // (fail-closed per provider). The deterministic core ranks the survivors by NET value and picks best.
+      const settled = await Promise.allSettled(providers.map((p) => p.quote(req)));
+      const quotes = settled.flatMap((s) => (s.status === 'fulfilled' ? [s.value] : []));
+      if (quotes.length === 0) {
+        const firstErr = settled.find((s): s is PromiseRejectedResult => s.status === 'rejected');
+        throw firstErr?.reason instanceof Error ? firstErr.reason : new Error('No route from any provider');
+      }
+      const picked = bestCrossChainQuote(quotes);
+      setQuote(picked.best);
+      setRanked(picked.ranked);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Quote failed');
     } finally {
@@ -253,6 +267,19 @@ export function CrossChainSwapView({ me }: { me: WalletIdentity }): JSX.Element 
             <span className="muted">
               route: {quote.steps.length ? quote.steps.join(' → ') : quote.tool} · fee {usd(quote.feeMicros)} · gas {usd(quote.gasMicros)} · ~{quote.etaSeconds}s
             </span>
+            {ranked.length > 1 && (
+              <span className="muted" style={{ borderTop: '1px solid var(--border, rgba(0,0,0,.08))', paddingTop: 6 }}>
+                compared {ranked.length} aggregators:{' '}
+                {ranked.map((r, i) => (
+                  <span key={r.quote.providerId}>
+                    {i > 0 ? ' · ' : ''}
+                    {r.quote.providerId === quote.providerId ? '🏆 ' : ''}
+                    <b>{r.quote.providerId}</b> {fmtBase(r.quote.toAmountBase, r.quote.toDecimals)} {r.quote.toTokenSymbol}
+                    {r.rejected ? ` (${r.rejected})` : ''}
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
         )}
 
