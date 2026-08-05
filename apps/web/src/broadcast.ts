@@ -19,6 +19,9 @@ import {
   checkEvmRecipient,
   assembleSolTransaction,
   extractSolSignableMessage,
+  assessSimulatedSourceOutflow,
+  SIM_NATIVE_SENTINEL,
+  type SimCall,
   buildBtcTransfer,
   buildSolTransferMessage,
   buildSplTransferMessage,
@@ -493,6 +496,37 @@ export interface CrossChainSwapExecInput {
   guard?: GuardAck;
 }
 
+// Pre-broadcast SIMULATION gate for a NATIVE-source route (eth_simulateV1). Runs the exact route tx against
+// live chain state with the user's native balance overridden (so it works before the wallet is funded),
+// traces transfers, and asserts the simulated EFFECT via assessSimulatedSourceOutflow: no revert, ONLY the
+// source asset leaves, within bound — catching a hostile route that reverts or drains a different (pre-
+// approved) asset, which the opaque calldata alone hides. Fail-CLOSED on a definitive bad verdict; fail-SOFT
+// (log + proceed) only when the node can't simulate at all, since the mainnet-ack + spend cap + native-value
+// bound + exact approval still bind (defense-in-depth). See the security review (F1/F2).
+async function simulateEvmNativeSourceEffect(pool: ProviderPool, opts: { from: string; to: string; value: bigint; data: string }): Promise<void> {
+  const overrideBalance = `0x${(opts.value + 2n * 10n ** 18n).toString(16)}`; // value + generous gas headroom
+  const payload = {
+    blockStateCalls: [
+      {
+        stateOverrides: { [opts.from.toLowerCase()]: { balance: overrideBalance } },
+        calls: [{ from: opts.from, to: opts.to, value: `0x${opts.value.toString(16)}`, data: opts.data }],
+      },
+    ],
+    traceTransfers: true,
+  };
+  let calls: readonly SimCall[];
+  try {
+    const res = await pool.request<Array<{ calls?: SimCall[] }>>('eth_simulateV1', [payload, 'latest']);
+    calls = res?.[0]?.calls ?? [];
+    if (calls.length === 0) return; // unexpected shape — degrade to the other guards, never false-block
+  } catch (e) {
+    console.warn('[crosschain] eth_simulateV1 unavailable — proceeding on the other guards', e);
+    return; // an infra failure is not a verdict; the other deterministic guards still bind
+  }
+  const verdict = assessSimulatedSourceOutflow(calls, { from: opts.from, sourceAsset: SIM_NATIVE_SENTINEL, maxSourceOutBase: opts.value });
+  if (!verdict.ok) throw new Error(`Simulation refused this route: ${verdict.reason}`);
+}
+
 export async function executeCrossChainSwapEvm(opts: CrossChainSwapExecInput): Promise<EvmSendResult> {
   const me = currentIdentity();
   if (!me) throw new Error('Unlock your wallet first.');
@@ -548,6 +582,8 @@ export async function executeCrossChainSwapEvm(opts: CrossChainSwapExecInput): P
     if (intended > 0n && value > intended * 4n) {
       throw new Error("Refusing this route: its native value is more than 4× the amount you entered — the provider transaction doesn't match your quote. Re-quote and try again.");
     }
+    // Deterministic SIMULATION gate: assert the route's simulated on-chain effect before we sign it.
+    await simulateEvmNativeSourceEffect(pool, { from: me.evm.address, to: opts.to, value, data: opts.data });
   }
   let gasLimit = opts.gasLimit ? (BigInt(opts.gasLimit) * 12n) / 10n : 0n;
   if (gasLimit <= 0n) {
@@ -599,10 +635,33 @@ export async function executeCrossChainSwapSolana(opts: CrossChainSwapSolanaExec
   // (a stale blockhash simply fails the broadcast, prompting a re-quote; funds never move on failure).
   const message = extractSolSignableMessage(opts.data);
   const sig = signSolanaMessage(message); // in-browser, with the user's key
+  const signedTx = assembleSolTransaction(message, sig);
   const rpcUrl = opts.rpcUrl?.trim() || DEFAULT_SOLANA_MAINNET_RPC;
   const pool = new ProviderPool([new HttpJsonRpcTransport(rpcUrl)]);
   const adapter = new SolanaAdapter('solana', pool);
-  const { txid } = await adapter.broadcastRawTransaction(assembleSolTransaction(message, sig));
+
+  // Pre-broadcast SIMULATION gate: preflight the signed tx and REFUSE if it would fail on-chain — a hostile
+  // or malformed route must never reach the wire. replaceRecentBlockhash tolerates a slightly stale hash;
+  // sigVerify:false because we only need the instructions' outcome. Fail-CLOSED on a definitive on-chain
+  // error; fail-SOFT only when the node itself can't simulate (the mainnet-ack + spend cap + multi-signer
+  // refusal still bind). See the security review (F3).
+  let simRan = false;
+  let simErr: unknown;
+  try {
+    const sim = await pool.request<{ value?: { err?: unknown } }>('simulateTransaction', [
+      signedTx,
+      { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'processed' },
+    ]);
+    simRan = true;
+    simErr = sim?.value?.err;
+  } catch (e) {
+    console.warn('[crosschain] Solana simulateTransaction unavailable — proceeding on the other guards', e);
+  }
+  if (simRan && simErr != null) {
+    throw new Error(`Simulation refused this Solana route: it fails on-chain (${JSON.stringify(simErr)}). Re-quote and try again.`);
+  }
+
+  const { txid } = await adapter.broadcastRawTransaction(signedTx);
   return { txid, explorerUrl: `https://explorer.solana.com/tx/${txid}` };
 }
 

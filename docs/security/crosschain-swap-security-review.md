@@ -10,6 +10,13 @@
   unattended real-fund GA.** The GA gate is transaction **simulation** (F1/F3). Non-custodial key handling
   holds absolutely (F6).
 
+> **Update (2026-08-05): the SIMULATION gate is now implemented** for the highest-risk paths —
+> `eth_simulateV1` source-effect assertion for native EVM routes (F1/F2) and a `simulateTransaction`
+> preflight for Solana routes (F3), both fail-closed. See ADR-0058. The residual narrows to the cross-chain
+> **destination** delivery (off this chain) and EVM **ERC-20** source balance-delta (relies on the exact
+> approval). Verified: 8 unit tests for the assessor + a live deBridge native tx (happy path accepted, a
+> value×100 tamper refused).
+
 ## Method
 
 Wearing the Principal Security Engineer hat, I ran the doctrine's *Challenge* step against the two signing
@@ -36,10 +43,12 @@ the user's own destination address.
   provider, route, fees) and gives an explicit real-funds ack; the $1,000 spend cap bounds a single move.
 - **Residual:** trust still rests on the aggregator being honest and uncompromised — the deterministic layer
   does not verify the tx's net effect.
-- **Verdict / GA gate:** before unattended real-fund GA, add **transaction simulation** that asserts the net
-  balance delta (−input at source, +≈quoted output at the user's dest, nothing else) and/or **per-provider
-  recipient decoding** (deBridge's `createOrder` recipient is decodable from calldata; LI.FI varies by
-  tool). Until then this is an accepted, documented residual under the CEO opt-in.
+- **Verdict / status:** **source-side simulation LANDED** (ADR-0058). `executeCrossChainSwapEvm` now runs
+  `eth_simulateV1` (traceTransfers) on a native-source route before signing, and `assessSimulatedSourceOutflow`
+  refuses a revert, an unexpected other-asset outflow, or an over-bound source spend — closing the
+  source-side of F1. **Residual:** the cross-chain **destination** delivery is off this chain, so source
+  simulation can't prove the dest receives; **per-provider recipient decoding** (deBridge `createOrder`)
+  and/or dest-chain monitoring remain the follow-up before unattended GA.
 
 ### F2 — Native EVM `value` was unbounded → **FIXED (defense-in-depth)** · was HIGH
 
@@ -63,8 +72,11 @@ aggregator-reported `amountUsd`.
   bounds the amount.
 - **Current mitigations:** **fail-closed multi-signer refusal** (we sign only as the sole fee payer, so a
   multi-signer construction is rejected outright); mainnet-ack + spend cap; the user's quote-review ack.
-- **Verdict / GA gate:** add Solana **preflight simulation** (`simulateTransaction` + assert the fee-payer's
-  balance deltas match the quote) before GA. Higher residual than EVM until then.
+- **Verdict / status:** **preflight LANDED** (ADR-0058). `executeCrossChainSwapSolana` now runs
+  `simulateTransaction` (replaceRecentBlockhash, sigVerify:false) before broadcast and **refuses** a route
+  that errors on-chain — fail-closed. **Residual:** a balance-DELTA bound (fee-payer lamport/SPL deltas vs
+  the quote) needs a funded-account simulation + ATA parsing; it's the follow-up. Multi-signer refusal +
+  mainnet-ack + cap remain in force.
 
 ### F4 — ERC-20 approval is EXACT and consumed · **INFO / OK**
 
@@ -104,18 +116,22 @@ never move (prompting a re-quote). **Acceptable, fail-safe.**
 
 ## Required before real-fund GA (the gate)
 
-1. **Transaction simulation, both ecosystems** (F1, F3): assert the net balance effect matches the quote
-   (−input at source, +≈output at the user's own destination, no other outflow) and block on mismatch.
-2. Prefer **per-provider recipient verification** where decodable (deBridge `createOrder`) as a second,
-   cheaper check.
+1. ~~**Transaction simulation, both ecosystems** (F1, F3)~~ — **DONE** (ADR-0058): native-EVM source-effect
+   assertion (`eth_simulateV1`) + Solana preflight (`simulateTransaction`), both fail-closed.
+2. **Destination-side verification** (remaining F1 residual): the cross-chain dest delivery is off the source
+   chain, so add **per-provider recipient decoding** where decodable (deBridge `createOrder`) and/or a
+   dest-chain receipt check; add an **EVM ERC-20 source** balance-delta sim (token-storage override) and a
+   **Solana balance-delta** bound (funded-account sim + ATA deltas).
 3. Keep the **$1,000 cap** conservative and surface the **aggregator-trust** note in the UI so consent is
-   informed (added alongside this review).
+   informed (done alongside this review).
 4. Independent third-party audit of the end-to-end mainnet flow (per CLAUDE.md §5) before GA.
 
 ## Conclusion
 
-The cross-chain-swap flows are **safe against key compromise** and, for EVM, reasonably bounded against a
-hostile aggregator (native-value bound + exact approval). The **open risk is a malicious/compromised
-aggregator delivering to a wrong recipient**, which the deterministic layer does not yet verify —
-**simulation is the GA gate**. The mode remains enabled under the explicit CEO opt-in (ADR-0055) with the
-guardrails above; this review **does not** certify unattended real-fund GA.
+The cross-chain-swap flows are **safe against key compromise** (F6) and, with the simulation gate now landed
+(ADR-0058), the deterministic layer **verifies the source-side effect** before signing — no revert, only the
+intended asset leaves, within bound (EVM native), and no on-chain failure (Solana preflight) — on top of the
+native-value bound and exact approval. The **remaining open risk is the cross-chain DESTINATION delivery**,
+which happens off the source chain and is not yet verified (dest-recipient decoding / monitoring is the
+follow-up). The mode remains enabled under the explicit CEO opt-in (ADR-0055) with these guardrails; this
+review **does not** certify fully-unattended real-fund GA until the destination check + third-party audit land.

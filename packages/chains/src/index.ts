@@ -36,6 +36,14 @@ export type {
   TxState,
 } from './adapter.js';
 export { EvmAdapter } from './evm/adapter.js';
+export {
+  assessSimulatedSourceOutflow,
+  SIM_NATIVE_SENTINEL,
+  type SimCall,
+  type SimLog,
+  type SourceOutflowPolicy,
+  type SimVerdict,
+} from './evm/simulate.js';
 export { SolanaAdapter } from './solana/adapter.js';
 export {
   buildSolTransferMessage,
