@@ -2395,7 +2395,10 @@ export async function executeTransferStep(step: {
   const to = step.to.trim();
   const g = step.guard ? { guard: step.guard } : {};
   // giwa-sepolia is a testnet (like sepolia) — only ethereum/etc. count as mainnet here.
-  const onMainnet = step.chain !== undefined && step.chain !== 'sepolia' && step.chain !== 'giwa-sepolia';
+  // "Mainnet" iff the REGISTRY says the chain is not a testnet — the source of truth. The old
+  // sepolia/giwa-only allowlist wrongly flagged solana-devnet + bitcoin-testnet as mainnet, so a DEVNET
+  // SOL/BTC send (even fully funded) hit the "isn't wired on mainnet" throw and never broadcast.
+  const onMainnet = step.chain !== undefined && !getChain(step.chain).testnet;
   const token = tokenInfo(asset);
   if (token) {
     // ERC-20 addresses are only mapped on Sepolia today. A mainnet ERC-20 transfer needs a
