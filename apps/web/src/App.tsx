@@ -4730,7 +4730,10 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // Block it up front so the chat path fails the same way as the Send sheet (BTC uses @scure's decoder).
   const planRecipientMalformed =
     !!planRecipient &&
-    ((planChain === 'solana-devnet' && classify(planRecipient) !== 'sol') ||
+    // Both Solana networks share the base58 ed25519 address format — the mainnet path ('solana') must get
+    // the SAME up-front format check as devnet, or a garbage recipient shows "checks passed" and only fails
+    // deep in the builder AFTER the user is told it's ready — on REAL funds.
+    (((planChain === 'solana-devnet' || planChain === 'solana') && classify(planRecipient) !== 'sol') ||
       (planChain === 'bitcoin-testnet' && !isValidBtcAddress(planRecipient, 'testnet')));
   // Everything that must stop a signature, gathered before the button is rendered.
   const recipientBlocks = [
