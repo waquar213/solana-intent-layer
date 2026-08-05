@@ -4821,6 +4821,13 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // never gets one). The API always sends base + decimals, so falling back to the bare symbol threw
   // away the one number the user most needs — "You receive (min): SOL" with no amount at all.
   const plannedMinOut = plan.quote.youReceiveMin ? fmtMinBase(plan.quote.youReceiveMin.base, plan.quote.youReceiveMin.decimals) : null;
+  // The slippage actually sent to the MAINNET aggregator. On the testnet solAMM path the wallet enforces
+  // its own on-chain amountOutMin from `minOut`, so the slider needs no re-quote (kept constant here → no
+  // needless re-fetch/flicker). On the mainnet aggregator path the on-chain floor lives INSIDE LI.FI's
+  // unsigned tx, so the slider MUST flow into the quote — otherwise "You receive at least X" (computed from
+  // the slider) would promise more than the tx (fixed 0.5%) enforces. Feeding it here + into the effect deps
+  // makes the displayed minimum equal LI.FI's real floor (same amountOut × (1 − slippage), same flooring).
+  const mainnetSlippageBps = onMainnet && solanaSwap ? slippageBps : 50;
 
   // Fetch the native balance for a transfer OR a native-input convert-and-send, so the drain guard has
   // a balance to check against for both.
@@ -4853,7 +4860,7 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
             fromDecimals: fromSym === 'SOL' ? 9 : 6,
             fromAddress: me2.sol.address,
             toAddress: me2.sol.address,
-            slippageBps: 50,
+            slippageBps: mainnetSlippageBps, // the USER's chosen slippage — baked into LI.FI's unsigned tx (the real floor)
           })
         : Promise.reject(new Error('Unlock your wallet first.'))
       )
@@ -4887,8 +4894,10 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
         setQuoteFailed(true); // a transient RPC/AMM failure — surface a Retry instead of a dead plan
       })
       .finally(() => setQuoting(false));
+    // mainnetSlippageBps in the deps → the mainnet aggregator re-quotes when the user changes slippage, so
+    // the signed tx's floor tracks the slider (testnet holds it constant, so it does not needlessly re-quote).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSwap, swapKey, quoteAttempt, onMainnet]);
+  }, [canSwap, swapKey, quoteAttempt, onMainnet, mainnetSlippageBps]);
 
   // Preflight the REVERSE testnet swap (dUSDC→SOL): read the wallet's dUSDC balance so the plan can
   // refuse — BEFORE any signature — to sell more dUSDC than it holds. Without this the swap looks fine,
