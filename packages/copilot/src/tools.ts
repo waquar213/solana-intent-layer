@@ -121,6 +121,21 @@ const PERFORMANCE_TOOL: ToolSpec = {
   },
 };
 
+/** A stable, UNIQUE reference for a risk subject, so two assessments of DIFFERENT subjects in one turn
+ *  don't collide on the same fact id (last-writer-wins would report subject B's risk under subject A). */
+function riskSubjectRef(s: SecuritySubject): string {
+  switch (s.kind) {
+    case 'token':
+      return s.address;
+    case 'address':
+      return s.address;
+    case 'approval':
+      return `${s.token}:${s.spender}`;
+    case 'provider':
+      return s.providerId;
+  }
+}
+
 const RISK_TOOL: ToolSpec = {
   name: 'assess_risk',
   scope: 'analyze',
@@ -137,13 +152,14 @@ const RISK_TOOL: ToolSpec = {
     const subject = args['subject'] as unknown as SecuritySubject;
     const decision = deps.capabilities.assessRisk(subject);
     const key = subject.kind;
+    const ref = riskSubjectRef(subject); // subject-specific → two subjects of the same kind don't collide
     const src = { engine: 'risk', call: 'evaluate' } as const;
     return Promise.resolve({
       output: decision,
       facts: [
-        { id: `risk.${key}.level`, label: 'Risk level', value: decision.report.level, source: src },
+        { id: `risk.${key}.${ref}.level`, label: 'Risk level', value: decision.report.level, source: src },
         {
-          id: `risk.${key}.score`,
+          id: `risk.${key}.${ref}.score`,
           label: 'Risk score',
           value: round(decision.report.score, 4),
           unit: 'ratio',
@@ -170,9 +186,13 @@ const ROUTE_TOOL: ToolSpec = {
       amount: args['amount'] as string,
     });
     const src = { engine: 'router', call: 'optimize' } as const;
+    // Subject-specific (from→to) so two find_route calls in one turn don't collide on a fixed id and report
+    // one route's confidence/cost under the other. copilot.ts reads the LATEST route fact (insertion order)
+    // for the recommendation, so the "current route" semantic is preserved without a shared fixed key.
+    const ref = `${args['fromAsset'] as string}-${args['toAsset'] as string}`;
     const facts: CitedFact[] = [
       {
-        id: 'route.confidence',
+        id: `route.${ref}.confidence`,
         label: 'Route confidence',
         value: round(route.confidence, 4),
         unit: 'ratio',
@@ -180,7 +200,7 @@ const ROUTE_TOOL: ToolSpec = {
       },
     ];
     if (route.costMicros !== undefined)
-      facts.push({ id: 'route.costUsd', label: 'Route cost', value: usd(route.costMicros), unit: 'usd', source: src });
+      facts.push({ id: `route.${ref}.costUsd`, label: 'Route cost', value: usd(route.costMicros), unit: 'usd', source: src });
     return { output: route, facts };
   },
 };

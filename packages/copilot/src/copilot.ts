@@ -97,7 +97,11 @@ export class Copilot {
           try {
             const out = await this.dispatcher.dispatch(call, toolDeps, ledger);
             if (out.planCandidate) planCandidate = out.planCandidate;
-            const rc = ledger.resolve('route.confidence');
+            // Route fact ids are now subject-specific (route.<from>-<to>.confidence) so distinct routes don't
+            // collide. Take the LATEST route-confidence fact (ledger preserves insertion order) — the route
+            // just found — preserving the prior "recommend the current route" behavior without a fixed key.
+            const rcFacts = ledger.all().filter((f) => f.label === 'Route confidence' && typeof f.value === 'number');
+            const rc = rcFacts[rcFacts.length - 1];
             if (rc && typeof rc.value === 'number') routeConfidence = rc.value;
             const json = JSON.stringify(out.output, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
             results.push({ toolCallId: call.id, result: redact(json) });

@@ -54,4 +54,19 @@ describe('ToolDispatcher.dispatch', () => {
     expect(out.planCandidate).toBeDefined();
     expect(out.planCandidate).not.toHaveProperty('signed'); // it is a proposal, not a signed plan
   });
+
+  it('assessing two DIFFERENT subjects in one turn records distinct facts (no id collision)', async () => {
+    const ledger = new FactLedger();
+    const dispatcher = new ToolDispatcher();
+    const tokenA = { kind: 'token', symbol: 'AAA', address: '0xAAAA000000000000000000000000000000000000', chainId: 'eip155:1' };
+    const tokenB = { kind: 'token', symbol: 'BBB', address: '0xBBBB000000000000000000000000000000000000', chainId: 'eip155:1' };
+    await dispatcher.dispatch({ id: 'c1', name: 'assess_risk', args: { subject: tokenA } }, deps, ledger);
+    await dispatcher.dispatch({ id: 'c2', name: 'assess_risk', args: { subject: tokenB } }, deps, ledger);
+    // Both subjects' scores coexist under DISTINCT ids — before the fix both wrote `risk.token.score` and
+    // the second silently overwrote the first (so a truthful citation of subject A's risk would fail
+    // reconciliation, or a fabricated one would pass). The old colliding id no longer exists.
+    expect(ledger.resolve(`risk.token.${tokenA.address}.score`)).toBeDefined();
+    expect(ledger.resolve(`risk.token.${tokenB.address}.score`)).toBeDefined();
+    expect(ledger.resolve('risk.token.score')).toBeUndefined();
+  });
 });
