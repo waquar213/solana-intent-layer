@@ -93,6 +93,8 @@ import {
   quoteGiwaSwapTokenForEth,
   swapSolForDusdc,
   swapDusdcForSol,
+  solDusdcBalanceBase,
+  SOLAMM_DECIMALS,
   executeCrossChainSwapSolana,
   quoteSolammBuy,
   quoteSolammSell,
@@ -3272,6 +3274,13 @@ const fmtHeld = (n: number | null): string =>
  * that isn't this exact shape passes through unchanged.
  */
 function humanizeTxError(msg: string, nativeLabel = 'ETH'): string {
+  // Solana solAMM reverse swap (dUSDC→SOL): the on-chain SPL-Token transfer of the dUSDC being sold
+  // reverts with `custom program error: 0x1` (Token::InsufficientFunds) when the wallet holds less than
+  // it is selling. Translate the hex so the user reads WHY, not a raw code. (The plan also PREFLIGHTS the
+  // dUSDC balance to block this before signing — this is the net for the Auto path / a not-yet-read race.)
+  if (/custom program error: 0x1\b/iu.test(msg) && /simulation failed|instruction\s+0\b/iu.test(msg)) {
+    return 'The swap was rejected on-chain — most likely your dUSDC balance is too low to sell this amount. Get dUSDC first (swap SOL → USDC), then sell it back for SOL. Nothing was signed or sent.';
+  }
   const m = /insufficient funds[\s\S]*?balance\s+(\d+)[\s\S]*?tx cost\s+(\d+)[\s\S]*?overshot\s+(\d+)/i.exec(msg);
   if (!m) return msg;
   const eth = (wei: string): string => {
@@ -4798,6 +4807,11 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // User-controlled max slippage (bps). The guaranteed minimum received is shown
   // before signing — no invisible fixed slippage on a real-fund swap.
   const [slippageBps, setSlippageBps] = useState(50); // 0.5% default
+  // The wallet's dUSDC balance (base units) for a REVERSE testnet swap (dUSDC→SOL). Read up front so we
+  // can refuse to sign a sell of more dUSDC than the wallet holds — which would only revert on-chain with
+  // a cryptic `custom program error: 0x1`. null = not-yet-read / read failed (best-effort: no block then;
+  // the on-chain revert + humanizeTxError stay the guarantee). See the reverse-swap preflight effect.
+  const [dusdcBal, setDusdcBal] = useState<bigint | null>(null);
 
   // The worst-case amount the swap is allowed to deliver, given the live quote +
   // the chosen slippage. This is the on-chain amountOutMinimum — a hard floor.
@@ -4875,6 +4889,20 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
       .finally(() => setQuoting(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSwap, swapKey, quoteAttempt, onMainnet]);
+
+  // Preflight the REVERSE testnet swap (dUSDC→SOL): read the wallet's dUSDC balance so the plan can
+  // refuse — BEFORE any signature — to sell more dUSDC than it holds. Without this the swap looks fine,
+  // gets signed, then reverts on-chain with "Transaction simulation failed … custom program error: 0x1"
+  // (Token::InsufficientFunds) — a cryptic dead-end that violates "comprehension precedes signature" and
+  // "honest errors". Best-effort: a failed read leaves dusdcBal null (no block); on-chain revert is the net.
+  useEffect(() => {
+    if (!(canSwap && solanaSwapReverse && !onMainnet)) {
+      setDusdcBal(null);
+      return;
+    }
+    void solDusdcBalanceBase().then(setDusdcBal).catch(() => setDusdcBal(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSwap, solanaSwapReverse, onMainnet, swapKey]);
 
   // The compound's swap leg uses the SAME live quote + slippage floor as a standalone swap — one
   // quote source per venue AND direction, so the on-chain floor always comes from the pool that
@@ -5456,22 +5484,37 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
             // FAILED (not just still in flight), don't leave an enabled button that throws the same
             // "try again in a second" forever — disable it and offer a real re-quote.
             const swapNeedsQuote = (canSwap || canSwapSend) && !swapQuote;
+            // Reverse testnet swap (dUSDC→SOL) selling more dUSDC than the wallet holds → the on-chain
+            // SPL-Token transfer would revert with `custom program error: 0x1`. Block BEFORE signing and
+            // say why. dusdcBal===null means the balance read hasn't landed / failed → don't block (the
+            // on-chain revert + humanizeTxError remain the safety net; a false block is worse than a net).
+            const reverseShort =
+              solanaSwapReverse && !onMainnet && swap != null && dusdcBal !== null && BigInt(swap.amountInBase) > dusdcBal;
             // planCurve / wrongCurve are hoisted to component scope (so the Auto effect gates on them too).
             return (
               <>
-                <button className="btn primary" onClick={() => void execute()} disabled={recipientBlocked || planChainChecking || swapNeedsQuote || wrongCurve}>
+                <button className="btn primary" onClick={() => void execute()} disabled={recipientBlocked || planChainChecking || swapNeedsQuote || wrongCurve || reverseShort}>
                   {recipientBlocked
                     ? 'Blocked by Sentinel'
                     : wrongCurve
                       ? 'Wrong account for this chain'
-                      : planChainChecking
-                        ? 'Checking recipient…'
-                        : swapNeedsQuote
-                          ? quoteFailed
-                            ? 'Quote unavailable'
-                            : 'Fetching quote…'
-                          : 'Sign on device & execute'}
+                      : reverseShort
+                        ? 'Not enough dUSDC'
+                        : planChainChecking
+                          ? 'Checking recipient…'
+                          : swapNeedsQuote
+                            ? quoteFailed
+                              ? 'Quote unavailable'
+                              : 'Fetching quote…'
+                            : 'Sign on device & execute'}
                 </button>
+                {reverseShort && swap != null && dusdcBal !== null && (
+                  <p className="muted" style={{ color: 'var(--medium)' }}>
+                    This sells <b>{fmtMinBase(swap.amountInBase, SOLAMM_DECIMALS)} dUSDC</b>, but this wallet holds only{' '}
+                    <b>{fmtMinBase(dusdcBal, SOLAMM_DECIMALS)} dUSDC</b>. Get dUSDC first — swap SOL → USDC — then sell it back for SOL.
+                    Nothing was signed.
+                  </p>
+                )}
                 {wrongCurve && (
                   <p className="muted" style={{ color: 'var(--medium)' }}>
                     This plan settles on {planCurve === 'sol' ? 'Solana' : planCurve === 'btc' ? 'Bitcoin' : 'an EVM chain'}, but your active

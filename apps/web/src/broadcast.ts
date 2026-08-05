@@ -1325,6 +1325,22 @@ export async function quoteSolammSell(tokenBase: string, rpcUrl = DEFAULT_DEVNET
 }
 
 /**
+ * The unlocked wallet's dUSDC balance (base units) on devnet — the token the REVERSE (dUSDC→SOL)
+ * solAMM swap sells. Its on-chain SPL-Token transfer reverts with `custom program error: 0x1`
+ * (Token::InsufficientFunds) if the wallet holds less than it is selling, so the UI reads this
+ * FIRST and refuses to let the user sign a swap that could only fail — comprehension before
+ * signature, fail closed. Returns 0n when the wallet is locked or has no dUSDC token account
+ * (an honest "you hold none"); an RPC error propagates so the caller can leave the preflight
+ * unknown (best-effort) rather than falsely block — the on-chain revert stays the guarantee.
+ */
+export async function solDusdcBalanceBase(rpcUrl = DEFAULT_DEVNET_RPC): Promise<bigint> {
+  const me = currentIdentity();
+  if (!me) return 0n;
+  const pool = new ProviderPool([new HttpJsonRpcTransport(rpcUrl)]);
+  return splBalanceOf(pool, me.sol.address, SOLAMM_MINT);
+}
+
+/**
  * Execute a REAL SOL→dUSDC swap on our solAMM: build the `swap_sol_for_token` anchor
  * message (with an idempotent ATA create), sign it in-browser with the wallet's ed25519
  * key, and broadcast. `amountOutMin` is a hard on-chain floor — the program reverts
