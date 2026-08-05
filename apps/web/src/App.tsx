@@ -4762,8 +4762,22 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
   // have checked a Solana recipient against EVM rules (and vice versa) once more venues were wired.
   const planChain: ChainId | null =
     real?.chain ?? (swapSend ? (swapSend.venue === 'giwa' ? 'giwa-sepolia' : 'solana-devnet') : null);
+  // This preview is the RECIPIENT-safety check (address poisoning / malformed / drain). The mainnet
+  // acknowledgment + $1,000 spend cap are confirmed SEPARATELY — the mainnet-ack dialog and the execution
+  // guard, which sees the plan's REAL USD value — so treat them as satisfied here and thread the plan's
+  // priced value. Otherwise every mainnet plan shows a false "REAL funds / over-cap, high-value confirmation
+  // required" before the user has even reviewed it (a $7 send read as "over $1,000").
   const localGuard =
-    planRecipient && planChain ? guardBroadcast({ chain: planChain, toAddress: planRecipient, knownAddresses: knownGoodAddresses() }) : null;
+    planRecipient && planChain
+      ? guardBroadcast({
+          chain: planChain,
+          toAddress: planRecipient,
+          knownAddresses: knownGoodAddresses(),
+          acknowledgeMainnet: true,
+          acknowledgeHighValue: true,
+          ...(real?.amountUsd !== undefined ? { amountUsd: real.amountUsd } : {}),
+        })
+      : null;
   const [planChainCheck, setPlanChainCheck] = useState<RecipientAssessment | null>(null);
   const [planChainChecking, setPlanChainChecking] = useState(false);
   useEffect(() => {
