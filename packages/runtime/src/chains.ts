@@ -23,8 +23,14 @@ export async function readChainHoldings(
   address: string,
   tokens: readonly TokenRef[] = [],
 ): Promise<Holding[]> {
-  const chainId = adapter.chainId;
-  const native = getChain(chainId).native;
+  const chain = getChain(adapter.chainId);
+  const native = chain.native;
+  // Stamp the caip-2 chain id, not the adapter's INTERNAL id ('arbitrum'/'optimism'/…). The wire scheme is
+  // caip-2 everywhere else — Alchemy holdings ('eip155:1'), plan `steps[].chainId`, and the web chainName
+  // map all use eip155:<id>. Mixing schemes made a symbol merged across sources (mergeHoldings) carry both,
+  // so deployed L2 rows arrived as raw 'arbitrum' in /insights `byChain` and rendered UNLABELED. Non-EVM
+  // adapters (their id is already caip-2-shaped) pass through unchanged.
+  const chainId = chain.evmChainId !== undefined ? `eip155:${chain.evmChainId}` : adapter.chainId;
   const holdings: Holding[] = [];
 
   const nativeBase = await adapter.getNativeBalance(address);

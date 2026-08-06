@@ -37,6 +37,14 @@ describe('chain wiring — live balances + adapter-backed gateway', () => {
     const holdings = await readChainHoldings(adapter, '0xabc', [{ address: '0xusdc', symbol: 'USDC', decimals: 6 }]);
     expect(holdings.find((h) => h.symbol === 'ETH')?.totalBase).toBe(3n * 10n ** 18n);
     expect(holdings.find((h) => h.symbol === 'USDC')?.totalBase).toBe(100_000_000n);
+    // Stamps caip-2, matching every other source (Alchemy, plan steps, web labels) — NOT the internal id.
+    expect(holdings.find((h) => h.symbol === 'ETH')?.chains[0]?.chainId).toBe('eip155:1');
+  });
+
+  it('stamps an L2 holding with its caip-2 id (not the internal adapter id)', async () => {
+    const adapter = fakeAdapter({ chainId: 'arbitrum', getNativeBalance: () => Promise.resolve(10n ** 18n) });
+    const holdings = await readChainHoldings(adapter, '0xabc');
+    expect(holdings[0]?.chains[0]?.chainId).toBe('eip155:42161'); // was raw 'arbitrum' → unlabeled in byChain
   });
 
   it('merges the same symbol across chains (sum + provenance)', () => {
