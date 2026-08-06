@@ -180,6 +180,17 @@ describe('deterministic parser — flagship utterances', () => {
     });
   });
 
+  it('CLARIFIES a named single-asset conditional — never blows it up to a whole-portfolio exit', () => {
+    // "sell my ETH if BTC drops 10%" is a SINGLE-asset price-triggered order (which the wallet can't arm
+    // yet), NOT "liquidate everything". It must clarify, not silently emergency_exit the whole portfolio.
+    expect(parseDeterministic('sell my ETH if BTC drops 10%')).toMatchObject({ kind: 'clarify' });
+    expect(parseDeterministic('convert my SOL if ETH drops 20%')).toMatchObject({ kind: 'clarify' });
+    expect(parseDeterministic('sell all my ETH if BTC drops 10%')).toMatchObject({ kind: 'clarify' }); // "all my ETH" = one asset
+    // …but a genuinely portfolio-wide exit still arms (no specific sold asset named before the trigger).
+    expect(parseDeterministic('exit if bitcoin drops 15%')).toMatchObject({ kind: 'emergency_exit' });
+    expect(parseDeterministic('move everything to stables if eth drops 30%')).toMatchObject({ kind: 'emergency_exit' });
+  });
+
   it('parses read-only questions as queries', () => {
     expect(parseDeterministic("what's my biggest holding?")).toMatchObject({ kind: 'query' });
   });

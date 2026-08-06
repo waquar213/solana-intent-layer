@@ -778,7 +778,15 @@ function parseEmergencyExit(lower: string): Intent | null {
   const beforeIf = lower.slice(0, Math.max(0, lower.search(/\bif\b/u))); // the STANDALONE "if", not the "if" inside "verify"
   const scopeWide = /\b(everything|all|entire|whole|portfolio|positions?|holdings?)\b/u.test(beforeIf);
   const hasAmount = /\d/u.test(beforeIf) || /\bhalf\b/u.test(beforeIf);
-  if (!scopeWide && hasAmount) {
+  // A specific NON-STABLE asset named before the trigger ("sell my ETH …", "all my BTC …") is a
+  // single-asset conditional order the wallet can't arm yet — NOT a whole-portfolio liquidation. Without
+  // this, "sell my ETH if BTC drops 10%" dropped 'ETH' and armed selling the ENTIRE non-stable portfolio.
+  // Stables are the DESTINATION (not the sold asset) so they don't count, and the TRIGGER asset sits AFTER
+  // "if" (not in beforeIf), so neither yields a false clarify. A named asset clarifies even with "all"
+  // ("all my ETH" = all of ONE asset, still single-asset). CLARIFY is also the safe direction — ask, never
+  // over-liquidate.
+  const namesAsset = /\b(btc|bitcoin|eth|ethereum|sol|solana|wbtc|weth|pol|matic|bnb|avax|link|uni|arb|op|ada|dot)\b/u.test(beforeIf);
+  if (namesAsset || (hasAmount && !scopeWide)) {
     return { kind: 'clarify', question: 'I cannot arm a price-triggered order yet — should I make that trade now instead?' };
   }
   const assetWord = (m[1] as string).toUpperCase();
