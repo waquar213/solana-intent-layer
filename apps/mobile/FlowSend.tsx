@@ -223,7 +223,14 @@ export default function SendFlow({ onClose }: { onClose: () => void }): React.JS
   const [poisonChecking, setPoisonChecking] = useState(false); // an on-chain check is in flight
 
   const def = chainDef(chain);
-  const asset = def.assets[assetIdx] ?? def.assets[0];
+  const rawAsset = def.assets[assetIdx] ?? def.assets[0];
+  // On MAINNET the "Bitcoin" chain moves REAL BTC (sendBtcTransfer uses netCfg().btc.network), so its asset
+  // is BTC — not the static 'tBTC' testnet ticker the CHAINS table carries. Without this, a mainnet BTC send
+  // showed "tBTC" on every screen while moving real funds, and estimateUsdDecimal('tBTC') → null, so the
+  // mainnet acknowledgement rendered no "~$X" and the $1,000 spend cap could never evaluate for BTC (fell to
+  // the generic "couldn't confirm USD" ack). The send/balance paths key on chain+kind, not sym, so this is
+  // purely the correct label + a real USD/cap for the confirmation.
+  const asset = isMainnet() && rawAsset.sym === 'tBTC' ? { ...rawAsset, sym: 'BTC' } : rawAsset;
   const recipient = useRecipient(raw, chain);
   // Labels follow the ACTIVE network so a real mainnet send is never labelled 'Sepolia'/'testnet'.
   const netLabel = isMainnet() ? (chain === 'sepolia' ? 'Ethereum' : chain === 'solana-devnet' ? 'Solana' : 'Bitcoin') : def.net;
