@@ -85,7 +85,11 @@ export function computePerformance(
 
   const levels = history.map((h) => microsToUsd(h.netWorthMicros));
   const dd = drawdown(levels);
-  const volatilityAnnual = annualizeVol(stdev(periodReturns), periodsPerYear);
+  // A SINGLE return (2 history points) has variance 0 by definition — that's "not enough data", not
+  // "zero volatility". Emitting 0 would fabricate a confident perfect-stability signal (stability factor
+  // 100, no EXTREME_VOLATILITY alert). Return null below 2 returns so consumers treat it as unknown (they
+  // already null-check). A genuine 0 from ≥2 equal returns is kept — that IS real, measured stability.
+  const volatilityAnnual = periodReturns.length < 2 ? null : annualizeVol(stdev(periodReturns), periodsPerYear);
 
   return {
     unrealizedPnlMicros,

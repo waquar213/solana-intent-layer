@@ -52,5 +52,8 @@ describe('performance', () => {
     const withoutFlow = computePerformance(normalize([]), history);
     expect(withFlow.twr).toBeCloseTo(0.1, 6); // (1500 − 400)/1000 − 1
     expect(withoutFlow.twr).toBeCloseTo(0.5, 6); // deposit wrongly counted if flows ignored
+    // 2 history points = 1 return → NOT enough data for volatility; must be null, never a confident 0
+    // (a fabricated "zero volatility / perfect stability" that would suppress the EXTREME_VOLATILITY alert).
+    expect(withoutFlow.volatilityAnnual).toBeNull();
   });
 });
