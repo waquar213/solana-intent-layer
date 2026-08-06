@@ -119,7 +119,12 @@ export function computeRisk(
   const lockedWeight = allocation.byLiquidity.find((s) => s.key === 'locked')?.weight ?? 0;
   const illiquidWeight = allocation.byLiquidity.find((s) => s.key === 'illiquid')?.weight ?? 0;
 
-  const leverage = ratio(np.debtMicros, gross);
+  // ratio() returns 0 when the denominator is 0 (correct for weights) — but for LEVERAGE that MASKS an
+  // insolvent book (debt against ZERO visible gross assets, e.g. collateral on an unsupported chain) as
+  // "no leverage / perfectly safe". Fail closed: zero gross with positive debt is maximal leverage, so the
+  // leverageSafety factor floors to 0 and HIGH_LEVERAGE fires (critical) instead of a false all-clear.
+  const leverage =
+    gross === 0n ? (np.debtMicros > 0n ? Math.max(params.targetMaxLeverage, 1) * 4 : 0) : ratio(np.debtMicros, gross);
 
   let bridged = 0n;
   for (const p of np.positions) {

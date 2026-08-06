@@ -59,6 +59,16 @@ describe('leverage + health', () => {
     expect(lev.score).toBeCloseTo(50, 4); // 1 − 0.25/0.5
   });
 
+  it('fails CLOSED on an insolvent book: debt with ZERO visible gross assets is max leverage, not "safe"', () => {
+    // ratio() returns 0 for a 0 denominator (fine for weights), but debt against $0 gross must NOT read as
+    // "no leverage / perfectly safe" — e.g. collateral on an unsupported chain is invisible here, so the
+    // wallet shows only the debt. It must be flagged, not cleared with a 100 safety score.
+    const r = risk([pos('DAI', 5_000_000_000n, 'borrowing')]); // $5k debt, $0 visible gross
+    expect(r.leverage).toBeGreaterThan(0.5); // NOT 0 — over the default target leverage
+    const lev = r.healthFactors.find((f) => f.key === 'leverageSafety')!;
+    expect(lev.score).toBe(0); // floored: insolvency is maximal danger
+  });
+
   it('health score falls when leverage rises', () => {
     const clean = risk([pos('ETH', 5_000_000_000n), pos('USDC', 5_000_000_000n)]);
     const levered = risk([
