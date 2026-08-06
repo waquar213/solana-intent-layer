@@ -444,8 +444,13 @@ export default function App(): React.JSX.Element {
             />
           )}
           {tab === 'portfolio' && <Portfolio key={`pf-${activeAccountIndex()}`} />}
-          {/* key on the pending intent so a fresh hand-off remounts the composer with the seed */}
-          {tab === 'ai' && <AiScreen key={pendingIntent ?? '∅'} initialInput={pendingIntent} />}
+          {/* Key on the active account AND the pending intent: the account index remounts the feed on an
+              account switch (every other tab does this) — otherwise a plan authorized on Account 1 stays in
+              the persisted feed, and tapping "Sign & send" signs it with the NOW-active Account 2
+              (executeTransferStep uses currentIdentity() at tap time) while the reviewed balance/drain still
+              reflect Account 1 → funds move from an account the user never reviewed. The pending intent still
+              remounts the composer with a fresh hand-off seed. */}
+          {tab === 'ai' && <AiScreen key={`ai-${activeAccountIndex()}-${pendingIntent ?? '∅'}`} initialInput={pendingIntent} />}
           {tab === 'activity' && <ActivityScreen key={`act-${activeAccountIndex()}`} address={id?.evm.address} />}
           {tab === 'settings' && <SettingsScreen onWipe={() => void doWipe()} onLock={doLock} />}
           {tab === 'console' && showConsole && <ConsoleScreen key={`con-${activeAccountIndex()}`} id={id} />}
