@@ -14,7 +14,7 @@
  * the risk engine and passed IN; the gateway decides the OBLIGATION, not the hit.
  */
 import { evaluateConsents } from './consent.js';
-import { isFeatureEnabled } from './governance.js';
+import { isFeatureEnabled, normFeature } from './governance.js';
 import { ProfileRegistry } from './profiles.js';
 import type {
   ComplianceDecision,
@@ -72,7 +72,9 @@ export class ComplianceGateway {
     };
 
     // 1. Feature availability — the profile's list is authoritative; flags/emergency freeze layer on top.
-    if (profile.disabledFeatures.includes(action.feature)) {
+    // Case/whitespace-insensitive (matches the freeze + flag gates): an exact .includes() let 'Fiat_Onramp'
+    // or ' fiat_onramp' bypass a disabledFeatures:['fiat_onramp'] the operator set — a fail-open.
+    if (profile.disabledFeatures.some((f) => normFeature(f) === normFeature(action.feature))) {
       reasons.push(`feature '${action.feature}' is not available in '${profile.id}'`);
       worsen('block');
     }

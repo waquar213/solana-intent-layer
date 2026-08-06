@@ -119,15 +119,26 @@ export const isApproved = (request: ApprovalRequest): boolean =>
  * authoritative availability gate (enforced in the gateway); flags are the
  * operational override on top.
  */
-const normFeature = (f: string): string => f.trim().toLowerCase();
+export const normFeature = (f: string): string => f.trim().toLowerCase();
+
+/** Case/whitespace-insensitive lookup into a per-feature flag record. The emergency freeze already
+ *  normalizes both sides; the availability flags MUST do the same, or a variant ('Swap' vs 'swap', or a
+ *  stray space) misses a `false` flag and falls through to enabled — a fail-open the freeze specifically
+ *  guards against. Normalizes BOTH the query and the stored keys, so it's robust to either casing. */
+const lookupFlag = (record: Record<string, boolean> | undefined, feature: string): boolean | undefined => {
+  if (!record) return undefined;
+  const target = normFeature(feature);
+  for (const [k, v] of Object.entries(record)) if (normFeature(k) === target) return v;
+  return undefined;
+};
 
 export function isFeatureEnabled(feature: ComplianceFeature, jurisdiction: string, flags: FeatureFlagSet): boolean {
   // The kill switch matches case-insensitively, so a casing/whitespace variant of
   // the feature id ('Swap' vs 'swap') cannot slip past an emergency freeze.
   if (flags.emergencyFrozen?.some((f) => normFeature(f) === normFeature(feature))) return false;
-  const perJurisdiction = flags.byJurisdiction?.[jurisdiction]?.[feature];
+  const perJurisdiction = lookupFlag(flags.byJurisdiction?.[jurisdiction], feature);
   if (perJurisdiction !== undefined) return perJurisdiction;
-  const global = flags.global[feature];
+  const global = lookupFlag(flags.global, feature);
   // Default for an unlisted feature. Enabled by default (the profile's
   // `disabledFeatures` is the authoritative availability gate), but a
   // security-conscious deployment can set `defaultEnabled: false` to fail closed.

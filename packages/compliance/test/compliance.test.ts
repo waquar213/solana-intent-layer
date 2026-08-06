@@ -227,6 +227,15 @@ describe('governance regressions', () => {
     expect(isFeatureEnabled('Swap', 'eu', flags)).toBe(false);
   });
 
+  it('availability FLAGS are case/whitespace-insensitive too (a variant cannot slip past a disabling flag)', () => {
+    // global flag disabling 'swap' must also stop 'Swap' / ' swap ' — else the query variant misses the key
+    // and falls through to enabled (a fail-open the freeze already blocks).
+    expect(isFeatureEnabled('Swap', 'eu', { global: { swap: false } })).toBe(false);
+    expect(isFeatureEnabled(' swap ', 'eu', { global: { swap: false } })).toBe(false);
+    // per-jurisdiction override, same insensitivity
+    expect(isFeatureEnabled('Bridge', 'us', { global: {}, byJurisdiction: { us: { bridge: false } } })).toBe(false);
+  });
+
   it('can fail CLOSED for unlisted features when defaultEnabled is false', () => {
     expect(isFeatureEnabled('brand_new_feature', 'eu', { global: {} })).toBe(true); // default open
     expect(isFeatureEnabled('brand_new_feature', 'eu', { global: {}, defaultEnabled: false })).toBe(false);
