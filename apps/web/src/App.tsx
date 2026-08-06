@@ -3453,8 +3453,20 @@ function LiveBalancesPanel({ variant = 'full' }: { variant?: 'net' | 'assets' | 
 
   // Net worth for the SELECTED network (Settings toggle) — testnet OR mainnet holdings,
   // not both combined. Null when the price feed is down (→ "—").
+  // A FAILED balance read is `amount: null` (nullable() catch in balances.ts) — coercing it to 0 would
+  // render a network failure as a real "$0.00 · live value" total, or drop a held asset from a total shown
+  // as complete (mainnet ETH OK but SOL read fails → understated total presented as whole). Doctrine: a
+  // network failure is NOT $0. So if any asset APPLICABLE to the selected network couldn't be read, the
+  // total is UNKNOWN → "—" (mirrors the asset-list filter that already hides null-amount cards). gUSDC has
+  // no mainnet (its mainnet null is a structural N/A, not a read failure), so exclude just that case.
+  const readFailedOnNet =
+    data != null &&
+    data.assets.some((a) => {
+      const amt = netMode === 'mainnet' ? a.mainnet.amount : a.testnet.amount;
+      return amt == null && !(a.symbol === 'gUSDC' && netMode === 'mainnet');
+    });
   const netWorth =
-    data == null || data.totalUsd == null
+    data == null || data.totalUsd == null || readFailedOnNet
       ? null
       : data.assets.reduce((sum, a) => {
           const amt = (netMode === 'mainnet' ? a.mainnet.amount : a.testnet.amount) ?? 0;
