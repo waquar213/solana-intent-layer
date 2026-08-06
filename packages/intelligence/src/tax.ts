@@ -43,7 +43,10 @@ interface PendingLine {
 }
 
 function termOf(acquiredAt: string, disposedAt: string, thresholdDays: number): TaxTerm {
-  return daysBetween(acquiredAt, disposedAt) >= thresholdDays ? 'long' : 'short';
+  // US "more than one year" (IRC §1222): a lot held EXACTLY the threshold (365 days) is SHORT-term;
+  // long-term begins the day after. `>= 365` misclassified an exactly-one-year hold as long-term (a
+  // different tax rate on the whole disposal). Strict `>` puts the boundary day on the correct side.
+  return daysBetween(acquiredAt, disposedAt) > thresholdDays ? 'long' : 'short';
 }
 
 /** Consume `qty` from lots in the order given (FIFO/LIFO/HIFO handled by pre-sorting). */

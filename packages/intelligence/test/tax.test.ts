@@ -45,6 +45,17 @@ describe('tax lot matching', () => {
     expect(report.totals.shortTermGainMicros).toBe(500_000_000n);
   });
 
+  it('long-term boundary is EXCLUSIVE: exactly one year is short-term, one more day is long-term', () => {
+    const evt = (dispOn: string): TaxEvent[] => [
+      { type: 'acquire', asset: 'ETH', amount: 10n ** 18n, costBasisMicros: 2_000_000_000n, asOf: '2025-01-01' },
+      { type: 'dispose', asset: 'ETH', amount: 10n ** 18n, proceedsMicros: 2_500_000_000n, asOf: dispOn },
+    ];
+    // 2025 has 365 days → 2025-01-01 → 2026-01-01 is exactly 365 days = exactly one year → SHORT (not "more
+    // than one year"). One day later is 366 days → LONG. `>= 365` wrongly made the exact-year hold long-term.
+    expect(computeTaxReport(evt('2026-01-01'), TAX_PRESETS.us_fifo).disposals[0]!.term).toBe('short');
+    expect(computeTaxReport(evt('2026-01-02'), TAX_PRESETS.us_fifo).disposals[0]!.term).toBe('long');
+  });
+
   it('surfaces unmatched disposals instead of guessing a cost basis', () => {
     const report = computeTaxReport(
       [
