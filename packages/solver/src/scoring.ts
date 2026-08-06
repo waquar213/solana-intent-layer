@@ -52,10 +52,14 @@ export function scoreProposals(
   const finiteFees = fees.filter((f) => Number.isFinite(f));
   const feeMin = finiteFees.length > 0 ? Math.min(...finiteFees) : 0;
   const feeMax = finiteFees.length > 0 ? Math.max(...finiteFees) : 0;
-  const etaMin = Math.min(...etas);
-  const etaMax = Math.max(...etas);
-  const slipMin = Math.min(...slips);
-  const slipMax = Math.max(...slips);
+  // Same finite-range guard for eta + slippage as for fees (defense in depth — validateProposal already
+  // rejects non-finite/negative eta/slippage, but scoring must never let one bad value poison the range).
+  const finiteEtas = etas.filter((e) => Number.isFinite(e));
+  const etaMin = finiteEtas.length > 0 ? Math.min(...finiteEtas) : 0;
+  const etaMax = finiteEtas.length > 0 ? Math.max(...finiteEtas) : 0;
+  const finiteSlips = slips.filter((s) => Number.isFinite(s));
+  const slipMin = finiteSlips.length > 0 ? Math.min(...finiteSlips) : 0;
+  const slipMax = finiteSlips.length > 0 ? Math.max(...finiteSlips) : 0;
 
   return valid.map((p) => {
     const rep = unit(reputationWeight(p.solverId));

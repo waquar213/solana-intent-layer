@@ -99,6 +99,12 @@ export function validateProposal(
     proposal.slippageBps <= request.maxSlippageBps,
     `${proposal.slippageBps} vs cap ${request.maxSlippageBps}`,
   );
+  // Lower/finite bounds too: a NEGATIVE slippage or a negative/non-finite ETA is nonsensical AND poisons
+  // the auction's min/max normalization — one hostile entry (etaSeconds/slippageBps = −1e6) drives every
+  // honest proposal's time/slippage sub-score to ~0 and wins on a route it never actually delivers. This is
+  // the same range-poisoning already blocked for feeMicros; block it here at the boundary for eta/slippage.
+  add('slippage_nonneg', Number.isFinite(proposal.slippageBps) && proposal.slippageBps >= 0, `slippageBps ${proposal.slippageBps}`);
+  add('eta_bounded', Number.isFinite(proposal.etaSeconds) && proposal.etaSeconds >= 0, `etaSeconds ${proposal.etaSeconds}`);
 
   // Provider allow / deny lists.
   const allowed = request.allowedProviders;

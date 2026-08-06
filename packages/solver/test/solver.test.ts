@@ -91,6 +91,21 @@ describe('SolverNetwork — security (claims are verified, not trusted)', () => 
     expect(net.registry.info('liar')!.stakeMicros).toBeLessThan(1_000_000n); // slashed for the over-claim
   });
 
+  it('rejects a proposal that poisons the auction with a negative ETA/slippage; the honest route still wins', async () => {
+    const net = createSolverNetwork({ env });
+    net.register({ id: 'evil', stakeMicros: 1_000_000n, banned: false });
+    net.register({ id: 'honest', stakeMicros: 1_000_000n, banned: false });
+    const out = await net.solve(request(), [
+      // Unfiltered, this hostile entry (impossible eta/slippage) would drive every honest proposal's
+      // time + slippage sub-score to ~0 via the min/max normalization and win a route it can't deliver.
+      new ScriptedSolver('evil', () => proposal('evil', { etaSeconds: -1_000_000, slippageBps: -1_000_000 })),
+      new ScriptedSolver('honest', () => proposal('honest', { etaSeconds: 30, slippageBps: 30 })),
+    ]);
+    const evil = out.evaluations.find((e) => e.proposal.solverId === 'evil');
+    expect(evil?.validation.valid).toBe(false); // rejected at the validation boundary
+    expect(out.winner?.solverId).toBe('honest'); // honest route wins — the auction is not poisoned
+  });
+
   it('excludes an under-staked solver (anti-Sybil / anti-spam)', async () => {
     const net = createSolverNetwork({ env, options: { minStakeMicros: 500_000n } });
     net.register({ id: 'poor', stakeMicros: 0n, banned: false });
