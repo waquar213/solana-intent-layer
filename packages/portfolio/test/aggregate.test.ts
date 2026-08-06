@@ -52,13 +52,17 @@ describe('aggregatePortfolio', () => {
     expect(pf.dust[0]?.isDust).toBe(true);
   });
 
-  it('handles unpriced assets (value 0, still listed as dust)', () => {
+  it('surfaces an unpriced held asset as UNKNOWN value — never a silent $0 in a "complete" total', () => {
     const balances: PortfolioBalance[] = [
       { chainId: 'ethereum', symbol: 'MYSTERY', amount: 10n ** 18n, decimals: 18, tokenAddress: '0xabc' },
     ];
     const pf = aggregatePortfolio(balances, { prices });
-    expect(pf.assets).toHaveLength(0);
-    expect(pf.dust[0]).toMatchObject({ symbol: 'MYSTERY', valueMicros: 0n, priceUsd: null });
+    // The holding is flagged unpriced, surfaced (NOT folded into dust as worthless), and reported in
+    // unpricedSymbols so the caller knows totalValueMicros (0 here) is a PARTIAL sum, not a real "$0".
+    expect(pf.unpricedSymbols).toEqual(['MYSTERY']);
+    expect(pf.assets).toHaveLength(1);
+    expect(pf.assets[0]).toMatchObject({ symbol: 'MYSTERY', valueMicros: 0n, priceUsd: null, unpriced: true, isDust: false });
+    expect(pf.dust).toHaveLength(0);
   });
 
   it('propagates staleness from prices', () => {

@@ -38,6 +38,7 @@ export function aggregatePortfolio(balances: PortfolioBalance[], options: Aggreg
 
   const assets: UnifiedAsset[] = [];
   let anyStale = false;
+  const unpricedSymbols: string[] = [];
 
   for (const [key, group] of groups) {
     const decimals = Math.max(...group.map((b) => b.decimals));
@@ -47,8 +48,14 @@ export function aggregatePortfolio(balances: PortfolioBalance[], options: Aggreg
 
     const price = prices[key];
     const priceStale = price?.stale === true;
+    // A held asset with NO price (feed down, or a token the price service doesn't cover) has an UNKNOWN
+    // value — NOT $0. Emitting 0 into a "complete" total and folding it into dust makes a real holding
+    // vanish silently (Doctrine: a network failure is not "$0"). Flag it, surface it (never dust), and
+    // record the symbol so the caller knows the total is a PARTIAL sum.
+    const unpriced = price === undefined;
     const valueMicros = price ? assetValueMicros(amount, decimals, usdToMicros(price.usd)) : 0n;
     if (priceStale) anyStale = true;
+    if (unpriced) unpricedSymbols.push(group[0]!.symbol);
 
     assets.push({
       symbol: group[0]!.symbol,
@@ -57,8 +64,9 @@ export function aggregatePortfolio(balances: PortfolioBalance[], options: Aggreg
       valueMicros,
       priceUsd: price?.usd ?? null,
       chains: group.map((b) => ({ chainId: b.chainId, amount: b.amount, tokenAddress: b.tokenAddress })),
-      isDust: valueMicros < dustThreshold,
+      isDust: !unpriced && valueMicros < dustThreshold, // an unpriced holding is surfaced, not folded away as $0-dust
       stale: priceStale,
+      unpriced,
     });
   }
 
@@ -71,5 +79,5 @@ export function aggregatePortfolio(balances: PortfolioBalance[], options: Aggreg
   const dust = assets.filter((a) => a.isDust);
   const totalValueMicros = assets.reduce((sum, a) => sum + a.valueMicros, 0n);
 
-  return { totalValueMicros, assets: main, dust, stale: anyStale };
+  return { totalValueMicros, assets: main, dust, stale: anyStale, unpricedSymbols };
 }

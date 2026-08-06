@@ -44,6 +44,9 @@ export interface UnifiedAsset {
   isDust: boolean;
   /** any contributing price/balance was stale. */
   stale: boolean;
+  /** No price was available for this HELD asset — its value is UNKNOWN and EXCLUDED from the total, NOT a
+   *  confident $0. Surfaced (never folded into dust) so the UI can show it honestly. */
+  unpriced: boolean;
 }
 
 export interface UnifiedPortfolio {
@@ -54,4 +57,8 @@ export interface UnifiedPortfolio {
   dust: UnifiedAsset[];
   /** True if any input (balance or price) was stale. */
   stale: boolean;
+  /** Symbols HELD but UNPRICED (no price available) — EXCLUDED from totalValueMicros, so when this is
+   *  non-empty the total is a PARTIAL sum. A caller MUST NOT present it as a complete "$0" (mirrors the
+   *  API balances reader's unpricedSymbols). Empty when every held asset was priced. */
+  unpricedSymbols: string[];
 }
