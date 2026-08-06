@@ -21,18 +21,26 @@ export interface PlanStep {
   kind: string;
   chainId: string;
   description: string;
+  /** seq numbers this step depends on (empty = can start immediately). Always sent by the server. */
+  dependsOn: number[];
   /**
    * Concrete execution params the device acts on — e.g. a transfer carries
-   * `{ asset, amountBase, to }`. Present for executable steps; the server produces
-   * them, the on-device signer consumes them (the runtime never signs).
+   * `{ asset, amountBase, to }`. The server contract permits ANY JSON value per key
+   * (Record<string, unknown>), so it must not be narrowed to string; the on-device
+   * signer consumes them (the runtime never signs).
    */
-  params?: Record<string, string>;
+  params: Record<string, unknown>;
 }
 
 export interface ExecutionPlan {
   planId: string;
+  /** The originating intent id (the plan is one realization of it). Always sent by the server. */
+  intentId: string;
   intentKind: string;
   assets: string[];
+  /** Chains funds move FROM / TO — a cross-chain plan lists both. Always sent by the server. */
+  sourceChains: string[];
+  destChains: string[];
   steps: PlanStep[];
   quote: {
     youSend: PlanAmount;

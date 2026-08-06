@@ -22,9 +22,14 @@ const PLAN: PlanResponse = {
     kind: 'plan',
     plan: {
       planId: 'plan-1',
+      intentId: 'intent-1',
       intentKind: 'transfer',
       assets: ['ETH'],
-      steps: [{ seq: 0, kind: 'transfer', chainId: 'eip155:1', description: 'send' }],
+      sourceChains: ['eip155:1'],
+      destChains: ['eip155:1'],
+      steps: [
+        { seq: 0, kind: 'transfer', chainId: 'eip155:1', description: 'send', dependsOn: [], params: { asset: 'ETH', amountBase: '100000000000000000', to: '0xabc' } },
+      ],
       quote: {
         youSend: { symbol: 'ETH', base: '100000000000000000', decimals: 18, valueMicros: '200000000' },
         youReceiveMin: null,

@@ -3989,7 +3989,10 @@ interface RealSwap {
 function executableSwap(plan: ExecutionPlan): RealSwap | null {
   if (plan.intentKind !== 'swap') return null;
   const fromSym = plan.quote.youSend.symbol;
-  const toSym = plan.quote.youReceiveMin?.symbol ?? plan.steps[0]?.params?.['to'];
+  // step.params values are untyped JSON (Record<string, unknown> per the server contract) — narrow the
+  // fallback 'to' to a string rather than assuming it (it happens to be a string today, but the type isn't).
+  const toParam = plan.steps[0]?.params['to'];
+  const toSym = plan.quote.youReceiveMin?.symbol ?? (typeof toParam === 'string' ? toParam : undefined);
   const amountInBase = plan.quote.youSend.base;
   if (!fromSym || !toSym || !amountInBase) return null;
   // The GIWA-native ETH⇄{USDC,gUSDC} pair executes on our own SimpleAMM, but isSwappablePair (Sepolia
