@@ -47,6 +47,7 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
 /** u64 little-endian (lamports). */
 function u64le(value: bigint): Uint8Array {
   if (value < 0n) throw new Error('lamports must be non-negative');
+  if (value >= 1n << 64n) throw new Error('lamports exceed u64 range'); // fail closed — never silently wrap to wrong bytes
   const out = new Uint8Array(8);
   let v = value;
   for (let i = 0; i < 8; i++) {
