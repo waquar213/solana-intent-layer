@@ -253,6 +253,37 @@ describe('planIntent — stake / rebalance / passthroughs', () => {
     }
   });
 
+  it('chains dependsOn within each multi-leg rebalance route (a swap waits for its approve)', async () => {
+    const twoLeg = {
+      async findRoute({ toSymbol }: { toSymbol: string }): Promise<Route | null> {
+        if (toSymbol === 'UNKNOWN') return null;
+        return {
+          legs: [
+            { kind: 'approve' as const, chainId: 'ethereum', venue: 'TestDEX', description: `Approve for ${toSymbol}` },
+            { kind: 'swap' as const, chainId: 'ethereum', venue: 'TestDEX', description: `Swap to ${toSymbol}` },
+          ],
+          outMinBase: 1_000_000_000_000_000_000n,
+          outDecimals: 18,
+          feeMicros: 210_000n,
+          slippageBps: 50,
+          etaSeconds: 30,
+        };
+      },
+    };
+    const out = await planIntent({ kind: 'rebalance', target: 'stables' }, ctx({ routes: twoLeg }));
+    expect(out.kind).toBe('plan');
+    if (out.kind === 'plan') {
+      // Each holding's route is [approve(seq n), swap(seq n+1)]. Before the fix EVERY leg was dependsOn:[]
+      // so an executor could submit the swap before the approval landed. The swap must depend on its own
+      // approve; the approve (first leg of its route) on nothing.
+      const swaps = out.plan.steps.filter((s) => s.kind === 'swap');
+      const approves = out.plan.steps.filter((s) => s.kind === 'approve');
+      expect(swaps.length).toBeGreaterThan(0);
+      for (const swap of swaps) expect(swap.dependsOn).toEqual([swap.seq - 1]);
+      for (const approve of approves) expect(approve.dependsOn).toEqual([]);
+    }
+  });
+
   it('routes recurring/emergency intents to automation', async () => {
     const rec = await planIntent(
       {

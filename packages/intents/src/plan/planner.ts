@@ -592,17 +592,22 @@ async function planRebalance(ctx: EngineContext): Promise<PlanOutcome> {
     totalFeeMicros += route.feeMicros;
     totalOutMinBase += route.outMinBase;
     outDecimals = route.outDecimals;
-    for (const leg of route.legs) {
+    route.legs.forEach((leg, i) => {
+      const thisSeq = seq++;
       steps.push({
-        seq: seq++,
+        seq: thisSeq,
         kind: leg.kind,
         chainId: leg.chainId,
         description: leg.description,
-        dependsOn: [],
+        // Chain legs WITHIN this holding's route — a later leg (e.g. the swap) must wait for the approve /
+        // prior hop, exactly like buildRoutePlan/planSwapAndSend. Every leg was `dependsOn: []`, so an
+        // executor could submit the swap before the approval landed (revert / out-of-order). i===0 keeps
+        // each holding's route independent of the others (no false cross-holding dependency).
+        dependsOn: i === 0 ? [] : [thisSeq - 1],
         params: { from: holding.symbol, to: 'USDC' },
       });
       chains.add(leg.chainId);
-    }
+    });
   }
   if (steps.length === 0)
     return { kind: 'rejected', reason: 'No routes available to move into stablecoins right now.', risk: LOW_RISK };
