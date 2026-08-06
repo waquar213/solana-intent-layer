@@ -103,8 +103,11 @@ export class SolverMarketplace {
     // 3. Score the valid survivors and select the winner.
     const valid = evaluations.filter((e) => e.validation.valid).map((e) => e.proposal);
     const scored = scoreProposals(valid, (id) => this.deps.reputation.score(id));
-    const scoreById = new Map(scored.map((s) => [s.proposal.solverId, s.score]));
-    for (const e of evaluations) e.score = scoreById.get(e.proposal.solverId) ?? 0;
+    // Key by the PROPOSAL hash, not solverId: one solver may submit multiple valid proposals (two
+    // strategies), and a solverId-keyed map would keep only the last one's score and assign it to ALL of
+    // that solver's evaluations — under-scoring its better proposal so it can lose to an inferior rival.
+    const scoreByHash = new Map(scored.map((s) => [s.proposal.hash, s.score]));
+    for (const e of evaluations) e.score = scoreByHash.get(e.proposal.hash) ?? 0;
 
     const winner = selectWinner(evaluations);
     return { requestId: request.id, winner, evaluations, ...(winner ? {} : { reason: 'no valid proposal' }) };
