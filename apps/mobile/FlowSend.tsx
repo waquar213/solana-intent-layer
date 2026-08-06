@@ -263,7 +263,12 @@ export default function SendFlow({ onClose }: { onClose: () => void }): React.JS
     }
     let live = true;
     setPoisonChecking(true);
-    assessRecipientLive({ chain: chain as ChainId, me: meEvm, target })
+    // The on-chain poison check must query the chain the recipient RECEIVES on — Ethereum on mainnet, not the
+    // testnet 'sepolia' ChainKey this sheet carries. Reading Sepolia history for a mainnet address gives a
+    // wrong verdict (false-block from unrelated Sepolia dust; any 🧬 reason describes the wrong chain).
+    // 'ethereum' has no explorer configured, so assessRecipientLive returns UNKNOWN — same fix as chat.tsx.
+    const poisonChain: ChainId = isMainnet() ? 'ethereum' : (chain as ChainId);
+    assessRecipientLive({ chain: poisonChain, me: meEvm, target })
       .then((r) => {
         if (!live) return;
         setPoisonBlocks(r.blocked);
