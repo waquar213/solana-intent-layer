@@ -446,7 +446,9 @@ async function planSwapAndSend(
       : outEcosystem === 'sol'
         ? 'solana:mainnet'
         : (swapOutChain ?? ctx.defaultChainFor(toAsset));
-  chains.add(sendChain);
+  // Do NOT fold sendChain into `chains` — it's the DESTINATION (destChains below), never a SOURCE. A
+  // SOL→BTC convert-and-send is SOURCED only from Solana; Bitcoin is pure destination. `chains` holds the
+  // swap legs' chains, so sourceChains stays the set funds actually leave from (what needs a balance/gas).
   const sendStep: PlanStep = {
     seq: swapSteps.length,
     kind: 'transfer',
