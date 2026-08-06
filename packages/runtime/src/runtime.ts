@@ -182,10 +182,22 @@ export class WalletRuntime {
     // SAME map context.sessionOutflowBase reads), so a LATER plan that would complete a whole-wallet
     // drain across several sends is caught at plan time. Over-counting an unexecuted plan only makes
     // the guard stricter, never looser.
-    if (permission.gate !== 'block' && plan.intentKind === 'transfer' && !this.countedPlans.has(plan.planId)) {
-      const p = plan.steps[0]?.params ?? {};
-      const asset = typeof p['asset'] === 'string' ? p['asset'].toUpperCase() : undefined;
-      const amt = typeof p['amountBase'] === 'string' ? p['amountBase'] : undefined;
+    // A convert-and-send (swap_and_send) SPENDS its input asset and forwards to an EXTERNAL recipient, so it
+    // drains the wallet exactly like a transfer — and its recipient is already treated as external by
+    // risk/sanctions. Omitting it let a swap_and_send + a later transfer empty the wallet across two typed
+    // messages, each individually under the cumulative-drain bar. Record the DRAINED source asset for both.
+    if (permission.gate !== 'block' && (plan.intentKind === 'transfer' || plan.intentKind === 'swap_and_send') && !this.countedPlans.has(plan.planId)) {
+      let asset: string | undefined;
+      let amt: string | undefined;
+      if (plan.intentKind === 'transfer') {
+        const p = plan.steps[0]?.params ?? {};
+        asset = typeof p['asset'] === 'string' ? p['asset'].toUpperCase() : undefined;
+        amt = typeof p['amountBase'] === 'string' ? p['amountBase'] : undefined;
+      } else {
+        // swap_and_send: the drained asset is the INPUT (plan.assets[0] = fromAsset), amount = youSend.base.
+        asset = typeof plan.assets[0] === 'string' ? plan.assets[0].toUpperCase() : undefined;
+        amt = plan.quote?.youSend?.base;
+      }
       if (asset && amt) {
         try {
           this.outflow.set(asset, (this.outflow.get(asset) ?? 0n) + BigInt(amt));
