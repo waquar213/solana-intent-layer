@@ -54,7 +54,11 @@ describe('topic registry', () => {
 describe('redis key builders', () => {
   it('build namespaced keys and lowercase addresses', () => {
     expect(redisKeys.portfolio('id-1')).toBe('pf:id-1');
-    expect(redisKeys.tokenMeta('ethereum', '0xABCDef')).toBe('tok:ethereum:0xabcdef');
+    expect(redisKeys.tokenMeta('ethereum', '0xABCDef')).toBe('tok:ethereum:0xabcdef'); // EVM hex → folded
+    // Solana (base58) is CASE-SENSITIVE — must be preserved, not lowercased (else distinct mints collide).
+    expect(redisKeys.tokenMeta('solana', 'So11111111111111111111111111111111111111112')).toBe(
+      'tok:solana:So11111111111111111111111111111111111111112',
+    );
     expect(redisKeys.rateLimit('parse', 'user-1')).toBe('rl:parse:user-1');
     expect(redisKeys.seen('portfolio', 'evt-9')).toBe('seen:portfolio:evt-9');
   });

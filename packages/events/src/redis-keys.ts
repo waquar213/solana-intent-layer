@@ -15,7 +15,12 @@ export interface RedisKeySpec {
 
 export const redisKeys = {
   portfolio: (identityId: string) => `pf:${identityId}`,
-  tokenMeta: (chainId: string, address: string) => `tok:${chainId}:${address.toLowerCase()}`,
+  // EVM hex addresses are case-insensitive → fold to lowercase for a stable key. But Solana (base58) and
+  // Bitcoin (base58) addresses are CASE-SENSITIVE: lowercasing them collides two DISTINCT mints/addresses
+  // onto one cache key, serving the wrong token metadata (incl. decimals, which drives amount math). Only
+  // normalize 0x-hex; preserve everything else exactly.
+  tokenMeta: (chainId: string, address: string) =>
+    `tok:${chainId}:${/^0x[0-9a-fA-F]+$/u.test(address) ? address.toLowerCase() : address}`,
   routeQuote: (hash: string) => `rt:${hash}`,
   price: (assetId: string) => `px:${assetId}`,
   rateLimit: (scope: string, key: string) => `rl:${scope}:${key}`,
