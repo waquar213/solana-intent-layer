@@ -19,6 +19,7 @@ export type ChainId =
   | 'optimism'
   | 'polygon'
   | 'bnb'
+  | 'robinhood'
   | 'bitcoin'
   | 'solana'
   | 'sepolia'
@@ -120,6 +121,20 @@ export const CHAINS: Record<ChainId, ChainInfo> = {
     explorerUrl: 'https://bscscan.com',
     finality: { kind: 'confirmations', count: 15 },
     defaultRpcUrls: ['https://bsc-dataseed.bnbchain.org', 'https://bsc-rpc.publicnode.com'],
+  },
+  robinhood: {
+    id: 'robinhood',
+    ecosystem: 'evm',
+    // Robinhood Chain — an Arbitrum Orbit L2 (ETH gas) for tokenized equities/RWAs. Mainnet chain-id 4663,
+    // public keyless RPC (verified live: eth_chainId → 0x1237). Orbit rollup ⇒ same finalized-tag rule as
+    // Base/Optimism/Arbitrum. Note: brand-new + specialized — cross-chain aggregators may not index it yet.
+    name: 'Robinhood Chain',
+    testnet: false,
+    evmChainId: 4663,
+    native: ETH,
+    explorerUrl: 'https://explorer.mainnet.chain.robinhood.com',
+    finality: { kind: 'evm-finalized-tag' },
+    defaultRpcUrls: ['https://rpc.mainnet.chain.robinhood.com'],
   },
   bitcoin: {
     id: 'bitcoin',

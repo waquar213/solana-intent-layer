@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { CHAINS, chainByEvmChainId, getChain, listChains } from '../src/registry.js';
 
 describe('chain registry', () => {
-  it('contains the 8 launch mainnets and 5 testnets', () => {
-    expect(listChains({ testnet: false })).toHaveLength(8);
+  it('contains the 9 launch mainnets and 5 testnets', () => {
+    expect(listChains({ testnet: false })).toHaveLength(9); // + Robinhood Chain (Arbitrum Orbit, id 4663)
     expect(listChains({ testnet: true })).toHaveLength(5);
   });
 
@@ -50,11 +50,21 @@ describe('chain registry', () => {
 
   it('resolves chains by EVM chain id', () => {
     expect(chainByEvmChainId(8453)?.id).toBe('base');
+    expect(chainByEvmChainId(4663)?.id).toBe('robinhood'); // Robinhood Chain — real mainnet, RPC verified live
     expect(chainByEvmChainId(999999)).toBeUndefined();
   });
 
+  it('Robinhood Chain is a real EVM mainnet (id 4663, ETH gas, https RPC + explorer)', () => {
+    const rh = getChain('robinhood');
+    expect(rh.evmChainId).toBe(4663);
+    expect(rh.testnet).toBe(false);
+    expect(rh.native.symbol).toBe('ETH');
+    expect(rh.defaultRpcUrls[0]).toMatch(/^https:\/\//u);
+    expect(rh.explorerUrl).toMatch(/^https:\/\//u);
+  });
+
   it('filters by ecosystem', () => {
-    expect(listChains({ ecosystem: 'evm', testnet: false })).toHaveLength(6);
+    expect(listChains({ ecosystem: 'evm', testnet: false })).toHaveLength(7); // + Robinhood
     expect(listChains({ ecosystem: 'btc', testnet: false })).toHaveLength(1);
     expect(listChains({ ecosystem: 'sol', testnet: false })).toHaveLength(1);
   });
