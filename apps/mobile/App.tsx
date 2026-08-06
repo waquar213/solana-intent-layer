@@ -24,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as ScreenCapture from 'expo-screen-capture';
 import Svg, { Path } from 'react-native-svg';
 
 import { isLight, radius, space, type as T, useTheme, type Palette } from './theme';
@@ -119,6 +120,16 @@ export default function App(): React.JSX.Element {
   const mode = useMode();
   const showConsole = isDev(mode);
   const tabs: TabDef[] = showConsole ? [...BASE_TABS, CONSOLE_TAB] : BASE_TABS;
+
+  // Block screenshots / screen-recording while the recovery phrase is on screen during first-time BACKUP —
+  // a captured seed (auto-synced to iCloud/Photos, or grabbed by a recorder) = full loss. The Settings
+  // re-reveal already does this (H5); the primary backup gate did NOT, leaving the most common capture point
+  // (the user photographing the words to "save" them) fully exposed on Android (no FLAG_SECURE).
+  useEffect(() => {
+    if (gate !== 'backup') return;
+    void ScreenCapture.preventScreenCaptureAsync('backup-phrase');
+    return () => void ScreenCapture.allowScreenCaptureAsync('backup-phrase');
+  }, [gate]);
 
   // Hydrate persisted storage (contacts/settings/session cache) before first use, then resolve the gate.
   useEffect(() => {
