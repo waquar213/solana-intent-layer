@@ -101,10 +101,18 @@ export class SelfHealingController {
         // counter, not a lifetime one — without this reset it climbs monotonically and, once it hits
         // maxActionsPerWindow, EVERY subsequent failure escalates forever (auto-recovery permanently
         // disabled for a busy service over the process lifetime).
+        //
+        // consecutiveFailures has the SAME monotonic-counter hazard: it only resets on a SUCCESSFUL
+        // actuator run, but once it hits maxAutoRecoveries the decision is 'escalate' — which dispatches NO
+        // action, so the success-reset is unreachable and the service escalates for the process lifetime
+        // (a transient outage that later fully resolves never re-attempts auto-recovery; even an unrelated
+        // failure months later just pages). Re-arm it on the same window roll — a quiet window means the
+        // burst passed — so auto-recovery is bounded to N attempts per window, not disabled forever.
         const healCfg = this.options.healing ?? DEFAULT_HEALING_CONFIG;
         const wStart = this.healingState.windowStartIso[svc];
         if (wStart && Date.parse(now) - Date.parse(wStart) >= healCfg.windowSeconds * 1000) {
           this.healingState.actionsInWindow[svc] = 0;
+          this.healingState.consecutiveFailures[svc] = 0;
           this.healingState.windowStartIso[svc] = now;
         }
         const decision = decideRecovery(signal, this.healingState, now, healCfg);

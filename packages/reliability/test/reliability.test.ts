@@ -183,6 +183,30 @@ describe('SelfHealingController — the tick loop', () => {
     expect(actuator.calls).toHaveLength(3);
   });
 
+  it('re-arms auto-recovery after a quiet window — consecutiveFailures is not a lifetime escalate', async () => {
+    // consecutiveFailures only reset on a SUCCESSFUL run, but once it hits maxAutoRecoveries the decision is
+    // 'escalate' (no dispatch), so the reset was unreachable and the service escalated forever. Fill it with
+    // failing recoveries, confirm it escalates, then advance past windowSeconds and confirm auto-recovery
+    // is re-attempted (the resolved/quiet service heals again instead of paging on every future failure).
+    const actuator = new SpyActuator(false); // every recovery fails
+    const incidents: Incident[] = [];
+    const ctrl = createController(
+      { actuator, env: createTestEnv(), incidents: { open: (i) => (incidents.push(i), Promise.resolve()) } },
+      { healing: { maxActionsPerWindow: 99, windowSeconds: 300, cooldownSeconds: 0, maxAutoRecoveries: 3, frozen: false } },
+    );
+    const signal: FailureSignal = { service: 'exec', kind: 'execution_failure', detail: 'timeout' };
+    await ctrl.tick({ slis: [], slos: [], signals: [signal] }, '2026-01-01T00:00:00.000Z'); // fail 1 — window opens
+    await ctrl.tick({ slis: [], slos: [], signals: [signal] }, '2026-01-01T00:01:00.000Z'); // fail 2
+    await ctrl.tick({ slis: [], slos: [], signals: [signal] }, '2026-01-01T00:02:00.000Z'); // fail 3
+    const escalated = await ctrl.tick({ slis: [], slos: [], signals: [signal] }, '2026-01-01T00:03:00.000Z');
+    expect(escalated.decisions[0]?.action).toBe('escalate'); // cf==3 → stopped trying
+    expect(actuator.calls).toHaveLength(3);
+    // +301s past the window open → consecutiveFailures resets → the same service auto-recovers again
+    const rearmed = await ctrl.tick({ slis: [], slos: [], signals: [signal] }, '2026-01-01T00:05:01.000Z');
+    expect(rearmed.decisions[0]?.action).not.toBe('escalate');
+    expect(actuator.calls).toHaveLength(4);
+  });
+
   it('isolates a per-signal dispatch failure — one throwing actuator does not abort the tick (N3)', async () => {
     // An injected sink that throws for ONE service must not drop every other service's recovery or the
     // whole tick result. The failing service surfaces as a bounded escalation; the rest still process.
