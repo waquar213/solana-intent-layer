@@ -374,9 +374,13 @@ function PlanFlow({ plan }: { plan: ExecutionPlan }): React.JSX.Element {
     if (phase === 'planned' && !autoAuthTriedRef.current) {
       autoDrivenRef.current = true;
       autoAuthTriedRef.current = true;
-      setMainnetAck(true); // Auto IS the consent to operate on mainnet within the user's caps.
-      // NOT setHighValueAck — the $1,000 statutory high-value gate is deliberately NOT auto-satisfiable; a
-      // high-value plan never reaches here (the `highValue` gate above dropped it to manual for a human tap).
+      // Do NOT setMainnetAck(true) / setHighValueAck(true) here. Auto's mainnet consent is expressed directly
+      // by execute() (it threads acknowledgeMainnet from isMainnet()), so neither the auto gate above nor
+      // execute() reads these ack states — but they ALSO gate the MANUAL "Sign & send REAL funds" button.
+      // Pre-setting mainnetAck leaked into a manual fallback: if this armed plan later drops to manual (a
+      // concurrent daily-cap race flips autoDec.auto false, or the highValue gate fires), the real-funds ack
+      // was already checked, so one tap sent without the human ever affirming it. The $1,000 high-value gate
+      // stays a human tap. Auto touches neither ack now.
       void authorize();
     } else if (phase === 'authorized' && permission?.mayProceedToSign && autoDrivenRef.current && !autoExecTriedRef.current) {
       if (canSwap && !swapQuote) return; // a swap needs its live quote before it can sign — don't consume the try
