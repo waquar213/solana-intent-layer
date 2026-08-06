@@ -3286,6 +3286,13 @@ function humanizeTxError(msg: string, nativeLabel = 'ETH'): string {
   if (/custom program error: 0x1\b/iu.test(msg) && /simulation failed|instruction\s+0\b/iu.test(msg)) {
     return 'The swap was rejected on-chain — most likely your dUSDC balance is too low to sell this amount. Get dUSDC first (swap SOL → USDC), then sell it back for SOL. Nothing was signed or sent.';
   }
+  // Solana UNFUNDED account: a mainnet SOL send/swap from a wallet with no mainnet SOL fails the RPC preflight
+  // with "found no record of a prior credit" (the fee-payer never received lamports), AccountNotFound, or
+  // insufficient lamports. The wallet is funded on DEVNET, not mainnet. Translate the raw node error to the
+  // real reason + action instead of a cryptic simulation dump.
+  if (/no record of a prior credit|attempt to debit an account|AccountNotFound|InsufficientFundsForRent|insufficient lamports/iu.test(msg)) {
+    return 'Your wallet has no SOL on Solana mainnet — nothing to send, or to cover the network fee (it\'s funded on devnet, not mainnet). Fund your Solana address with mainnet SOL, then try again. No funds moved.';
+  }
   const m = /insufficient funds[\s\S]*?balance\s+(\d+)[\s\S]*?tx cost\s+(\d+)[\s\S]*?overshot\s+(\d+)/i.exec(msg);
   if (!m) return msg;
   const eth = (wei: string): string => {
@@ -5546,16 +5553,30 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
             // on-chain revert + humanizeTxError remain the safety net; a false block is worse than a net).
             const reverseShort =
               solanaSwapReverse && !onMainnet && swap != null && dusdcBal !== null && BigInt(swap.amountInBase) > dusdcBal;
+            // A native SOL TRANSFER sending more than the wallet holds (e.g. a mainnet SOL send from a wallet
+            // with 0 mainnet SOL) would fail the RPC preflight AFTER signing with a cryptic "no record of a
+            // prior credit". Block BEFORE signing — comprehension precedes signature. Scoped to SOL because
+            // balanceForAsset('SOL') is network-aware (mainnet vs devnet), so `bal` matches the send's
+            // network; a null/non-numeric bal (loading/failed) never false-blocks (humanizeTxError is the net).
+            const realShort =
+              canReal &&
+              real != null &&
+              real.asset === 'SOL' &&
+              bal !== null &&
+              /^\d+(\.\d+)?$/u.test(bal) &&
+              BigInt(real.amountBase) > BigInt(decimalToBase(bal, NATIVE_DECIMALS['SOL'] ?? 9));
             // planCurve / wrongCurve are hoisted to component scope (so the Auto effect gates on them too).
             return (
               <>
-                <button className="btn primary" onClick={() => void execute()} disabled={recipientBlocked || planChainChecking || swapNeedsQuote || wrongCurve || reverseShort}>
+                <button className="btn primary" onClick={() => void execute()} disabled={recipientBlocked || planChainChecking || swapNeedsQuote || wrongCurve || reverseShort || realShort}>
                   {recipientBlocked
                     ? 'Blocked by Sentinel'
                     : wrongCurve
                       ? 'Wrong account for this chain'
                       : reverseShort
                         ? 'Not enough dUSDC'
+                        : realShort
+                          ? 'Not enough SOL'
                         : planChainChecking
                           ? 'Checking recipient…'
                           : swapNeedsQuote
@@ -5569,6 +5590,12 @@ function PlanFlow({ plan, onExecuted }: { plan: ExecutionPlan; onExecuted?: (ite
                     This sells <b>{fmtMinBase(swap.amountInBase, SOLAMM_DECIMALS)} dUSDC</b>, but this wallet holds only{' '}
                     <b>{fmtMinBase(dusdcBal, SOLAMM_DECIMALS)} dUSDC</b>. Get dUSDC first — swap SOL → USDC — then sell it back for SOL.
                     Nothing was signed.
+                  </p>
+                )}
+                {realShort && real != null && bal !== null && (
+                  <p className="muted" style={{ color: 'var(--medium)' }}>
+                    This sends <b>{fmtMinBase(real.amountBase, NATIVE_DECIMALS['SOL'] ?? 9)} SOL</b>, but this wallet holds only{' '}
+                    <b>{bal} SOL</b> on {real.chainLabel}. Fund your Solana address, then try again. Nothing was signed.
                   </p>
                 )}
                 {wrongCurve && (
