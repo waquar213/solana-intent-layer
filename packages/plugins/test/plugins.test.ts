@@ -358,6 +358,24 @@ describe('PluginRegistry — the full pipeline', () => {
     expect(reg.get(m.id)?.state).toBe('suspended');
   });
 
+  it('a suspended plugin cannot be un-suspended by replaying its (public, signed) manifest', () => {
+    const reg = fresh();
+    const m = manifest({ permissions: ['portfolio.read'] });
+    reg.register(signedInput(m));
+    reg.install(m.id, ['portfolio.read']);
+    reg.transition(m.id, 'enable');
+    reg.authorizeCall(m.id, 'portfolio.annotate'); // denied → violation
+    reg.healthTick(m.id);
+    expect(reg.get(m.id)?.state).toBe('suspended');
+    // Re-registering the SAME signed manifest previously reset state→registered + health→empty (un-suspend).
+    // It must now be refused, and the abuse counters + suspended state must stand.
+    const replay = reg.register(signedInput(m));
+    expect(replay.ok).toBe(false);
+    expect(replay.reasons.join()).toMatch(/already registered/);
+    expect(reg.get(m.id)?.state).toBe('suspended');
+    expect(reg.health(m.id)?.permissionViolations).toBeGreaterThan(0);
+  });
+
   // Regression: the event side channel must count violations too, or a plugin can probe
   // for permissions it lacks via authorizeEvent without ever tripping auto-suspend.
   it('counts a denied event subscription as a violation and auto-suspends', () => {

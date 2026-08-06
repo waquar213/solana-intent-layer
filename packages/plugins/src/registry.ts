@@ -113,6 +113,18 @@ export class PluginRegistry {
     );
     if (!verified.verified) return { ok: false, reasons: verified.reasons };
 
+    // A plugin id already live in the registry must NOT be re-registered: doing so reset its lifecycle
+    // state to 'registered' and zeroed its health/abuse counters (emptyHealth), so anyone could replay the
+    // PUBLIC, signed manifest to clear an auto-suspend for permission violations / crash-looping. Changes to
+    // a live plugin go through update/rollback (which preserve health). A 'removed' plugin may be re-installed.
+    const existing = this.records.get(manifest.id);
+    if (existing && existing.plugin.state !== 'removed') {
+      return {
+        ok: false,
+        reasons: [`plugin '${manifest.id}' is already registered (state: ${existing.plugin.state}) — use update/rollback, not re-register`],
+      };
+    }
+
     const trust = evaluateTrust(manifest.trustLevel, manifest.permissions);
     const limits = sandboxPolicyFor(manifest.trustLevel, [], manifest.resources).limits;
     this.records.set(manifest.id, {
