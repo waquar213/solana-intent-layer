@@ -106,6 +106,19 @@ export const SOLAMM_TOKEN_SYMBOL = 'dUSDC';
 export const DEFAULT_ETHEREUM_RPC = import.meta.env.VITE_ETH_MAINNET_RPC || 'https://ethereum-rpc.publicnode.com';
 
 /**
+ * The default RPC for an EVM chain: the env-configured endpoint for the chains that have one (sepolia/giwa/
+ * ethereum — a keyed prod URL can be injected via VITE_*), else the registry's public keyless default. This
+ * is what lets a native send/read work on ANY registry EVM chain (Arbitrum/Base/Optimism/Polygon/BNB/
+ * Robinhood), not just the two the old code special-cased — the registry is the single source of truth.
+ */
+export function evmRpcFor(chain: ChainId): string {
+  if (chain === 'sepolia') return DEFAULT_SEPOLIA_RPC;
+  if (chain === 'giwa-sepolia') return DEFAULT_GIWA_RPC;
+  if (chain === 'ethereum') return DEFAULT_ETHEREUM_RPC;
+  return getChain(chain).defaultRpcUrls[0] ?? DEFAULT_SEPOLIA_RPC;
+}
+
+/**
  * Optional caller confirmation for the mainnet guardrails. The wallet is testnet-only
  * today, so this is normally absent and the guard simply validates the recipient. It
  * is the escape hatch a future mainnet-confirm dialog fills in to authorize a real,
@@ -223,9 +236,10 @@ export async function sendEvmTransfer(opts: {
   guard?: GuardAck;
 }): Promise<EvmSendResult> {
   const chain = opts.chain ?? 'sepolia';
-  // Default the node from the CHAIN, not always Sepolia — else a caller passing chain:'giwa-sepolia'
-  // with no rpcUrl would sign a GIWA (91342) tx and fire it at the Sepolia node (wrong-chain reject).
-  const rpcUrl = opts.rpcUrl?.trim() || (chain === 'giwa-sepolia' ? DEFAULT_GIWA_RPC : DEFAULT_SEPOLIA_RPC);
+  // Default the node from the CHAIN via the registry (evmRpcFor) — not a giwa/sepolia special-case. An L2
+  // send (chain:'arbitrum'/'base'/…) with no rpcUrl would otherwise sign the correct chainId but fire it at
+  // the Sepolia node (wrong-chain reject); now every registry EVM chain gets its own RPC.
+  const rpcUrl = opts.rpcUrl?.trim() || evmRpcFor(chain);
   const me = currentIdentity();
   if (!me) throw new Error('Unlock your wallet first.');
   assertBroadcastAllowed(guardInput(chain, opts.to.trim(), opts.guard));
